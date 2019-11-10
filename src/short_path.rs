@@ -2,12 +2,11 @@
 
 #[test]
 fn test_short(){
-    use crate::shortpath::*;
+    use crate::short_path::*;
     use CardDir::*;
 
-    let test_path=[U,D,D,L,R,U,L,R,U,R,R,D,D,D,U,R,D,R,U,D,D,D,D,D,D,D,U,D,D,D,D,D];
+    let test_path=[U,D,D,L,R,U,L,R,U,R,R,D,D,D,U,R,D,R,U,D,D,D,D,D,D,D,U,D,D,U,U];
     let s=ShortPath::new(test_path.iter().map(|a|*a));
-    assert_eq!(s.len(),32);
     let v:Vec<_>=s.iter().collect();
     assert_eq!(&v as &[_],&test_path);
 }
@@ -42,23 +41,24 @@ impl CardDir{
     
 }
 
+const SENTINAL_VAL:u64=0b11;
 
-const MAX_PATH_LENGTH:usize=32;
+const MAX_PATH_LENGTH:usize=31;
 //CardDir only takes up 2 bit. So inside of a 64 bit integer,
 //we can store a path of length 32.
 //at that point just make it have to re-compute.
 
 
 //
-//   00000000000000000000
-//   99887766554433221100
+//   110000000000000000
+//   xx8877665544332211
 #[derive(Copy,Clone)]
 pub struct ShortPath{
     value:u64
 }
 impl ShortPath{
     pub fn new<I:IntoIterator<Item=CardDir>+ExactSizeIterator>(it:I)->ShortPath{
-        assert!(it.len()<=32);
+        assert!(it.len()<=31,"You can only store a path of up to length 31 != 32.");
 
         let mut value = 0;
         let mut bit_index=0;
@@ -66,12 +66,15 @@ impl ShortPath{
             value |= ((a.into_two_bits() as u64) << bit_index);
             bit_index+=2;
         }
+        value |= SENTINAL_VAL<<bit_index;
+
         ShortPath{value}
     }
 
     pub fn len(&self)->usize{
         let l=self.value.leading_zeros() as usize;
-        32-(l/2)
+        println!("l={:?}",l);
+        31  -(l/2)
     }
     pub fn iter(&self)->ShortPathIter{
         ShortPathIter{path:*self}
@@ -89,8 +92,10 @@ impl Iterator for ShortPathIter{
         let l = self.path.len();
         (l,Some(l))
     }
+    
     fn next(&mut self)->Option<Self::Item>{
-        if self.path.value==0{
+        //If the path has nothing left in it except for the sentinal val
+        if self.path.value==SENTINAL_VAL{
             return None
         }
 

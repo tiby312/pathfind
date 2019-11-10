@@ -9,11 +9,10 @@ use dinotree::prelude::*;
 use duckduckgeo::*;
 use dinotree_alg::rect::*;
 
-
+mod grid;
 mod pathfind;
 mod short_path;
 
-type GridNum=isize;
 type BotIndex=usize;
 /*
 

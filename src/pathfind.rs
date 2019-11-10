@@ -2,7 +2,7 @@
 use crate::*;
 use crate::short_path::*;
 
-use dists::grid::Grid;
+use crate::grid::*;
 
 
 #[derive(Copy,Clone)]
@@ -14,7 +14,7 @@ pub struct PathFindInfo{
 
 pub struct PathFindResult{
     info:PathFindInfo,
-    path:ShortPath
+    path:Option<ShortPath>
 }
 
 
@@ -36,8 +36,74 @@ pub struct PathFinder{
 
 
 
-fn perform_astar(grid:&Grid,req:PathFindInfo)->ShortPath{
-    unimplemented!()
+fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
+    use pathfinding::prelude::*;
+
+    #[derive(Copy,Clone,Eq,PartialEq,Hash)]
+    struct Pos{
+        x:isize,
+        y:isize
+    };
+
+    fn pos(x:isize,y:isize)->Pos{
+        Pos{x,y}
+    }
+
+    impl Pos {
+        fn distance(&self, other: &Pos) -> u32 {
+            //manhatan distance
+            (absdiff(self.x, other.x) + absdiff(self.y, other.y)) as u32
+        }
+
+        fn successors(&self) -> Vec<(Pos, u32)> {
+            let &Pos{x, y} = self;
+             vec![pos(x+1,y), pos(x-1,y), pos(x,y+1), pos(x,y-1)]
+             .into_iter().map(|p| (p, 1)).collect()
+        }
+    }
+
+    let start=Pos{x:req.start.x,y:req.start.y};
+    let end  =Pos{x:req.end.x,y:req.end.y};
+
+    let result = pathfinding::directed::astar::astar(&start,|p|p.successors(),|p|p.distance(&end),|p|p==&end);
+
+    match result{
+        Some((mut a,_))=>{
+            let mut cursor=vec2(start.x,start.y);
+
+            let mut dirs=Vec::new();
+            
+            for curr in a.drain(..).take(31){
+                let curr=vec2(curr.x,curr.y);
+                use CardDir::*;
+
+                let dir=match curr-cursor{
+                    Vec2{x:1,y:0}=>{
+                        R
+                    },
+                    Vec2{x:-1,y:0}=>{
+                        L
+                    },
+                    Vec2{x:0,y:-1}=>{
+                        U
+                    },
+                    Vec2{x:0,y:1}=>{
+                        D
+                    },
+                    _=>{
+                        unreachable!()
+                    }
+                };
+                dirs.push(dir);
+                cursor=curr;
+            }
+
+            Some(ShortPath::new(dirs.drain(..)))
+        },
+        None=>{
+            None
+        }
+    }
 }
 
 
@@ -50,7 +116,7 @@ impl PathFinder{
     //
     //all requests will be returned by this function after DELAY calls to this function.
     //no sooner, no later.
-    fn handle_par(&mut self,grid:&Grid,mut new_requests:Vec<PathFindInfo>)->Vec<PathFindResult>{
+    fn handle_par(&mut self,grid:&Grid2D,mut new_requests:Vec<PathFindInfo>)->Vec<PathFindResult>{
         for a in new_requests.drain(..){
             self.requests.push_back(PathFindTimer{info:a,time_put_in:self.timer})    
         }
