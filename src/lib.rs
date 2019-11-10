@@ -10,13 +10,16 @@ use duckduckgeo::*;
 use dinotree_alg::rect::*;
 
 
+mod pathfind;
+mod short_path;
 
-/*
 type GridNum=isize;
+type BotIndex=usize;
+/*
 
 
 mod bot{
-    type BotIndex=usize;
+    
 }
 mod card{
 
@@ -27,52 +30,6 @@ mod card{
 /*
 mod grid{
     pub struct Grid{
-
-    }
-}
-
-mod pathfind{
-    struct PathFindInfo{
-        start:Vec2<GridNum>,
-        end:Vec2<GridNum>,
-        bot_index:BotIndex
-    }
-
-    struct PathFindTimer{
-        req:PathFindInfo,
-        //The number of ticks left before this request must be fulfilled.
-        time_put_in:usize
-    }
-
-
-    struct PathFindResult{
-        info:PathFindInfo,
-        path:PathfindSolution
-    }
-
-    const DELAY=60;
-    struct PathFinder{
-        requests:Queue<PathFindTimer>,
-        timer:usize //TODO what to do on overflow
-    }
-
-    impl PathFinder{
-        //add some new requests and also
-        //process some request
-        //
-        //all requests will be returned by this function after DELAY calls to this function.
-        //no sooner, no later.
-        fn handle_par(&mut self,grid:&Grid,new_requests:Vec<PathFindInfo>)->Vec<PathFindResult>{
-            
-            //add new requests to priority queue.
-
-            //pull a decent amount from the priority queue.
-            //at the very least pull out everything from the priotiy queue that needs to be computed in this tick.
-            //
-            //
-            //handle them in parallel.
-            self.timer+=1;
-        }
 
     }
 }
