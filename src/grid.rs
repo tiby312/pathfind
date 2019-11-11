@@ -35,7 +35,7 @@ impl Grid2D {
 }
 
 
-struct GridDim2D{
+pub struct GridDim2D{
     dim:Rect<f32>,
     inner:Grid2D
 }

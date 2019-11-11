@@ -43,7 +43,7 @@ impl CardDir{
 
 const SENTINAL_VAL:u64=0b11;
 
-const MAX_PATH_LENGTH:usize=31;
+pub const MAX_PATH_LENGTH:usize=31;
 //CardDir only takes up 2 bit. So inside of a 64 bit integer,
 //we can store a path of length 32.
 //at that point just make it have to re-compute.
@@ -58,12 +58,12 @@ pub struct ShortPath{
 }
 impl ShortPath{
     pub fn new<I:IntoIterator<Item=CardDir>+ExactSizeIterator>(it:I)->ShortPath{
-        assert!(it.len()<=31,"You can only store a path of up to length 31 != 32.");
+        assert!(it.len()<=MAX_PATH_LENGTH,"You can only store a path of up to length 31 != 32.");
 
         let mut value = 0;
         let mut bit_index=0;
         for a in it{
-            value |= ((a.into_two_bits() as u64) << bit_index);
+            value |= (a.into_two_bits() as u64) << bit_index;
             bit_index+=2;
         }
         value |= SENTINAL_VAL<<bit_index;
@@ -74,7 +74,7 @@ impl ShortPath{
     pub fn len(&self)->usize{
         let l=self.value.leading_zeros() as usize;
         println!("l={:?}",l);
-        31  -(l/2)
+        MAX_PATH_LENGTH  -(l/2)
     }
     pub fn iter(&self)->ShortPathIter{
         ShortPathIter{path:*self}
@@ -100,7 +100,7 @@ impl Iterator for ShortPathIter{
         }
 
         use CardDir::*;
-        let val = match (self.path.value & 0b11) {
+        let val = match self.path.value & 0b11 {
             0b00=>{
                 U
             },

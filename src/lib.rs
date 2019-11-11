@@ -4,16 +4,15 @@ use crate::bot::*;
 use dinotree::axgeom::ordered_float::*;
 use dinotree::axgeom::*;
 use dinotree::axgeom;
-
-use dinotree::prelude::*;
 use duckduckgeo::*;
 use dinotree_alg::rect::*;
 
-mod grid;
-mod pathfind;
-mod short_path;
+pub mod grid;
+pub mod pathfind;
+pub mod short_path;
 
-type BotIndex=usize;
+pub type BotIndex=usize;
+
 /*
 
 

@@ -7,14 +7,14 @@ use crate::grid::*;
 
 #[derive(Copy,Clone)]
 pub struct PathFindInfo{
-    start:Vec2<GridNum>,
-    end:Vec2<GridNum>,
-    bot_index:BotIndex
+    pub start:Vec2<GridNum>,
+    pub end:Vec2<GridNum>,
+    pub bot_index:BotIndex
 }
 
 pub struct PathFindResult{
-    info:PathFindInfo,
-    path:Option<ShortPath>
+    pub info:PathFindInfo,
+    pub path:Option<ShortPath>
 }
 
 
@@ -28,11 +28,7 @@ use std::collections::VecDeque;
 
 
 const DELAY:usize=60;
-pub struct PathFinder{
-    requests:VecDeque<PathFindTimer>,
-    finished:VecDeque<(usize,PathFindResult)>,
-    timer:usize //TODO what to do on overflow
-}
+
 
 
 
@@ -124,7 +120,11 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
     }
 }
 
-
+pub struct PathFinder{
+    requests:VecDeque<PathFindTimer>,
+    finished:VecDeque<(usize,PathFindResult)>,
+    timer:usize //TODO what to do on overflow
+}
 impl PathFinder{
     pub fn new()->PathFinder{
         PathFinder{requests:VecDeque::new(),finished:VecDeque::new(),timer:0}
@@ -134,17 +134,15 @@ impl PathFinder{
     //
     //all requests will be returned by this function after DELAY calls to this function.
     //no sooner, no later.
-    fn handle_par(&mut self,grid:&Grid2D,mut new_requests:Vec<PathFindInfo>)->Vec<PathFindResult>{
+    pub fn handle_par(&mut self,grid:&Grid2D,mut new_requests:Vec<PathFindInfo>)->Vec<PathFindResult>{
         for a in new_requests.drain(..){
             self.requests.push_back(PathFindTimer{info:a,time_put_in:self.timer})    
         }
 
 
 
-        use rayon;
 
-        let (aa,bb) = self.requests.as_slices();
-
+        
 
 
         let infos_that_must_be_processed=self.requests.iter().enumerate().find(|a| (self.timer - a.1.time_put_in) < DELAY ).map(|a|a.0);
