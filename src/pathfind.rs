@@ -5,13 +5,15 @@ use crate::short_path::*;
 use crate::grid::*;
 
 
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Debug)]
 pub struct PathFindInfo{
     pub start:Vec2<GridNum>,
     pub end:Vec2<GridNum>,
     pub bot_index:BotIndex
 }
 
+
+#[derive(Copy,Clone,Debug)]
 pub struct PathFindResult{
     pub info:PathFindInfo,
     pub path:Option<ShortPath>
@@ -31,6 +33,27 @@ const DELAY:usize=60;
 
 
 
+mod test{
+    use crate::grid::*;
+    use crate::pathfind::*;
+    #[test]
+    fn test(){
+        let grid=Grid2D::new(10,10);
+        let mut k=PathFinder::new();
+
+        let start=vec2(0,0);
+        let end=vec2(9,9);
+        
+        for _ in 0..60{
+            let k =k.handle_par(&grid,vec!(PathFindInfo{start,end,bot_index:0}));
+            dbg!(k);
+        }
+
+        let ans =k.handle_par(&grid,vec!(PathFindInfo{start,end,bot_index:0}));
+        dbg!(ans);
+        assert!(false);
+    }
+}
 
 
 fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
@@ -59,17 +82,27 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
             let &Pos{x, y} = self;
 
             let mut v=Vec::new();
-            if grid.get(x+1,y){
-                v.push(pos(x+1,y))
+            if x<grid.xdim(){
+                if grid.get(x+1,y){
+                    v.push(pos(x+1,y))
+                }
             }
-            if grid.get(x-1,y){
-                v.push(pos(x-1,y))   
+            if x>0{
+                if grid.get(x-1,y){
+                    v.push(pos(x-1,y))   
+                }
             }
-            if grid.get(x,y-1){
-                v.push(pos(x,y-1))
+
+            if y>0{
+                if grid.get(x,y-1){
+                    v.push(pos(x,y-1))
+                }
             }
-            if grid.get(x,y+1){
-                v.push(pos(x,y+1))   
+
+            if y<grid.ydim(){
+                if grid.get(x,y+1){
+                    v.push(pos(x,y+1))   
+                }
             }
 
             v.into_iter().map(|p| (p, 1)).collect()
@@ -158,7 +191,7 @@ impl PathFinder{
         };
 
 
-        let problem_vec:Vec<_>=self.requests.drain(0..num_to_process).collect();
+        let problem_vec:Vec<_>=self.requests.drain(0..num_to_process.min(self.requests.len())).collect();
         use rayon::prelude::*;
 
         let mut newv:Vec<_> = problem_vec.into_par_iter().map(|a|{

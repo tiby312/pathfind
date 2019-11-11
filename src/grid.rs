@@ -8,28 +8,28 @@ pub type GridNum=isize;
 
 #[derive(Debug)]
 pub struct Grid2D {
-    xs: usize,
-    ys: usize,
+    xs: GridNum,
+    ys: GridNum,
     inner: BitVec,
 }
 
 impl Grid2D {
-    pub fn new(xs: usize, ys: usize) -> Grid2D {
-        let inner = BitVec::from_elem(xs * ys, false);
+    pub fn new(xs: GridNum, ys: GridNum) -> Grid2D {
+        let inner = BitVec::from_elem((xs * ys) as usize, false);
 
         Grid2D { xs, ys, inner }
     }
-    pub fn xdim(&self) -> usize {
+    pub fn xdim(&self) -> GridNum {
         self.xs
     }
-    pub fn ydim(&self) -> usize {
+    pub fn ydim(&self) -> GridNum {
         self.ys
     }
     pub fn get(&self, x: GridNum, y: GridNum) -> bool {
-        self.inner[x as usize * self.ys + y as usize]
+        self.inner[(x * self.ys + y) as usize]
     }
     pub fn set(&mut self, x: GridNum, y: GridNum,val:bool) {
-        self.inner.set(x as usize * self.ys + y as usize, val)
+        self.inner.set( (x * self.ys + y) as usize, val)
     }
 
 }

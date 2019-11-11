@@ -56,6 +56,17 @@ pub const MAX_PATH_LENGTH:usize=31;
 pub struct ShortPath{
     value:u64
 }
+
+
+use core::fmt;
+impl fmt::Debug for ShortPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let path:Vec<_> = self.iter().collect();
+
+        write!(f, "Path:{:?}", path)
+    }
+}
+
 impl ShortPath{
     pub fn new<I:IntoIterator<Item=CardDir>+ExactSizeIterator>(it:I)->ShortPath{
         assert!(it.len()<=MAX_PATH_LENGTH,"You can only store a path of up to length 31 != 32.");
