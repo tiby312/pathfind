@@ -38,20 +38,33 @@ mod test{
     use crate::pathfind::*;
     #[test]
     fn test(){
-        let grid=Grid2D::new(10,10);
+        let mut grid=Grid2D::new(10,10);
+
+        for i in 0..10{
+            for j in 0..10{
+                grid.set(i,j,true);
+            }
+        }
+
+
         let mut k=PathFinder::new();
 
         let start=vec2(0,0);
         let end=vec2(9,9);
         
-        for _ in 0..60{
-            let k =k.handle_par(&grid,vec!(PathFindInfo{start,end,bot_index:0}));
+        let _ =k.handle_par(&grid,vec!(PathFindInfo{start,end,bot_index:0}));
+            
+        for _ in 0..59{
+            let k =k.handle_par(&grid,vec!());
+            
             dbg!(k);
         }
 
-        let ans =k.handle_par(&grid,vec!(PathFindInfo{start,end,bot_index:0}));
-        dbg!(ans);
-        assert!(false);
+        let k =k.handle_par(&grid,vec!());    
+        dbg!(&k);
+
+        use CardDir::*;
+        assert_eq!(k[0].path.unwrap(),ShortPath::new([R,R,R,R,R,R,R,R,R,D,D,D,D,D,D,D,D,D].iter().map(|a|*a)));
     }
 }
 
@@ -82,24 +95,24 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
             let &Pos{x, y} = self;
 
             let mut v=Vec::new();
-            if x<grid.xdim(){
+            if x<grid.xdim()-1{
                 if grid.get(x+1,y){
                     v.push(pos(x+1,y))
                 }
             }
-            if x>0{
+            if x>1{
                 if grid.get(x-1,y){
                     v.push(pos(x-1,y))   
                 }
             }
 
-            if y>0{
+            if y>1{
                 if grid.get(x,y-1){
                     v.push(pos(x,y-1))
                 }
             }
 
-            if y<grid.ydim(){
+            if y<grid.ydim()-1{
                 if grid.get(x,y+1){
                     v.push(pos(x,y+1))   
                 }
@@ -120,7 +133,7 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
 
             let mut dirs=Vec::new();
             
-            for curr in a.drain(..).take(31){
+            for curr in a.drain(..).skip(1).take(31){
                 let curr=vec2(curr.x,curr.y);
                 use CardDir::*;
 
@@ -137,8 +150,8 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
                     Vec2{x:0,y:1}=>{
                         D
                     },
-                    _=>{
-                        unreachable!()
+                    uhoh=>{
+                        unreachable!("{:?}",uhoh);
                     }
                 };
                 dirs.push(dir);
@@ -201,7 +214,6 @@ impl PathFinder{
         for a in newv.drain(..){
             self.finished.push_back(a);
         }
-
 
 
 

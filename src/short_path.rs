@@ -52,7 +52,7 @@ pub const MAX_PATH_LENGTH:usize=31;
 //
 //   110000000000000000
 //   xx8877665544332211
-#[derive(Copy,Clone)]
+#[derive(Copy,Clone,Eq,PartialEq)]
 pub struct ShortPath{
     value:u64
 }
