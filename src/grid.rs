@@ -25,11 +25,11 @@ impl Grid2D {
     pub fn ydim(&self) -> usize {
         self.ys
     }
-    pub fn get(&self, x: usize, y: usize) -> bool {
-        self.inner[x * self.ys + y]
+    pub fn get(&self, x: GridNum, y: GridNum) -> bool {
+        self.inner[x as usize * self.ys + y as usize]
     }
-    pub fn set(&mut self, x: usize, y: usize,val:bool) {
-        self.inner.set(x * self.ys + y, val)
+    pub fn set(&mut self, x: GridNum, y: GridNum,val:bool) {
+        self.inner.set(x as usize * self.ys + y as usize, val)
     }
 
 }

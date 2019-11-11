@@ -36,16 +36,20 @@ pub struct PathFinder{
 
 
 
+
 fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
+    //TODO this function does a bunch of dynamic allocation. how to avoid?
+
+
     use pathfinding::prelude::*;
 
     #[derive(Copy,Clone,Eq,PartialEq,Hash)]
     struct Pos{
-        x:isize,
-        y:isize
+        x:GridNum,
+        y:GridNum
     };
 
-    fn pos(x:isize,y:isize)->Pos{
+    fn pos(x:GridNum,y:GridNum)->Pos{
         Pos{x,y}
     }
 
@@ -55,17 +59,31 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
             (absdiff(self.x, other.x) + absdiff(self.y, other.y)) as u32
         }
 
-        fn successors(&self) -> Vec<(Pos, u32)> {
+        fn successors(&self,grid:&Grid2D) -> Vec<(Pos, u32)> {
             let &Pos{x, y} = self;
-             vec![pos(x+1,y), pos(x-1,y), pos(x,y+1), pos(x,y-1)]
-             .into_iter().map(|p| (p, 1)).collect()
+
+            let mut v=Vec::new();
+            if grid.get(x+1,y){
+                v.push(pos(x+1,y))
+            }
+            if grid.get(x-1,y){
+                v.push(pos(x-1,y))   
+            }
+            if grid.get(x,y-1){
+                v.push(pos(x,y-1))
+            }
+            if grid.get(x,y+1){
+                v.push(pos(x,y+1))   
+            }
+
+            v.into_iter().map(|p| (p, 1)).collect()
         }
     }
 
     let start=Pos{x:req.start.x,y:req.start.y};
     let end  =Pos{x:req.end.x,y:req.end.y};
 
-    let result = pathfinding::directed::astar::astar(&start,|p|p.successors(),|p|p.distance(&end),|p|p==&end);
+    let result = pathfinding::directed::astar::astar(&start,|p|p.successors(grid),|p|p.distance(&end),|p|p==&end);
 
     match result{
         Some((mut a,_))=>{
