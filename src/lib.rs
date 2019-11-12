@@ -1,11 +1,11 @@
 pub use dinotree;
 pub use duckduckgeo;
-use crate::bot::*;
-use dinotree::axgeom::ordered_float::*;
+
+
 use dinotree::axgeom::*;
 use dinotree::axgeom;
-use duckduckgeo::*;
-use dinotree_alg::rect::*;
+
+
 
 pub mod grid;
 pub mod pathfind;

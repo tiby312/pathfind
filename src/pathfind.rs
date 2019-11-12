@@ -34,8 +34,8 @@ const DELAY:usize=60;
 
 
 mod test{
-    use crate::grid::*;
-    use crate::pathfind::*;
+    
+    
     #[test]
     fn test(){
         let mut grid=Grid2D::new(10,10);

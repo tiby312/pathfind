@@ -23,7 +23,7 @@ struct GridBot{
 	state:GridBotState
 }
 
-fn move_to_point(bot:&mut Bot,target:Vec2<WorldNum>) -> bool{
+fn move_to_point(_bot:&mut Bot,_target:Vec2<WorldNum>) -> bool{
 	unimplemented!()
 }
 
@@ -35,12 +35,17 @@ pub struct Game{
 	pathfinder:PathFinder
 }
 
-fn pick_empty_spot(grid:&GridDim2D)->Vec2<GridNum>{
+fn pick_empty_spot(_grid:&GridDim2D)->Vec2<GridNum>{
 	unimplemented!();
 }
 impl Game{
-
-	fn step(&mut self){
+	pub fn new()->Game{
+		let pathfinder=PathFinder::new();
+		let bots=Vec::new();
+		let grid=GridDim2D{dim:Rect::new(0.,100.,0.,100.),inner:Grid2D::new(10,10)};
+		Game{grid,bots,pathfinder}
+	}
+	pub fn step(&mut self){
 
 		let mut path_requests=Vec::new();
 		for (i,b) in self.bots.iter_mut().enumerate(){

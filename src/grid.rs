@@ -41,7 +41,7 @@ pub struct GridDim2D{
     pub inner:Grid2D
 }
 impl GridDim2D{
-    pub fn convert_to_world(&self,val:Vec2<GridNum>)->Vec2<WorldNum>{
+    pub fn convert_to_world(&self,_val:Vec2<GridNum>)->Vec2<WorldNum>{
         unimplemented!();
     }
 /*
