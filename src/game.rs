@@ -23,6 +23,10 @@ struct GridBot{
 	state:GridBotState
 }
 
+
+fn update_bot(_bot:&mut Bot){
+	unimplemented!()
+}
 fn move_to_point(_bot:&mut Bot,_target:Vec2<WorldNum>) -> bool{
 	unimplemented!()
 }
@@ -73,6 +77,8 @@ impl Game{
 
 		
 		for b in self.bots.iter_mut(){
+			update_bot(&mut b.bot);
+
 			if let GridBotState::Moving(ref mut curr_target,ref mut path)=&mut b.state{
 				if move_to_point(&mut b.bot,self.grid.convert_to_world(*curr_target)){
 					match path.next(){
