@@ -10,7 +10,7 @@ use dinotree_alg::rect::*;
 pub mod grid;
 pub mod pathfind;
 pub mod short_path;
-
+pub mod game;
 pub type BotIndex=usize;
 
 /*

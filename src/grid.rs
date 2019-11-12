@@ -35,11 +35,15 @@ impl Grid2D {
 }
 
 
+pub type WorldNum=f32;
 pub struct GridDim2D{
-    dim:Rect<f32>,
-    inner:Grid2D
+    pub dim:Rect<WorldNum>,
+    pub inner:Grid2D
 }
 impl GridDim2D{
+    pub fn convert_to_world(&self,val:Vec2<GridNum>)->Vec2<WorldNum>{
+        unimplemented!();
+    }
 /*
     pub fn get_rect(&self, i: usize, j: usize) -> Rect<f32> {
         let dim = self.dim;

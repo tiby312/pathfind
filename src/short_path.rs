@@ -1,4 +1,6 @@
 
+use crate::axgeom::*;
+use crate::grid::*;
 
 #[test]
 fn test_short(){
@@ -19,7 +21,23 @@ pub enum CardDir{
     R
 }
 impl CardDir{
-    
+    pub fn into_vec(self)->Vec2<GridNum>{
+        use CardDir::*;
+        match self{
+            U=>{
+                vec2(0,-1)
+            },
+            D=>{
+                vec2(0,1)
+            },
+            L=>{
+                vec2(-1,0)
+            },
+            R=>{
+                vec2(1,0)
+            }
+        }
+    }
     fn into_two_bits(self)->u8{
         use CardDir::*;
         match self{
@@ -92,9 +110,20 @@ impl ShortPath{
     }
 }
 
+
+#[derive(Copy,Clone,Eq,PartialEq)]
 pub struct ShortPathIter{
     path:ShortPath
 }
+
+impl fmt::Debug for ShortPathIter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let path:Vec<_> = self.collect();
+
+        write!(f, "Path:{:?}", path)
+    }
+}
+
 impl ExactSizeIterator for ShortPathIter{}
 impl Iterator for ShortPathIter{
     type Item=CardDir;
