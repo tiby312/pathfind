@@ -60,17 +60,20 @@ impl Grid2D {
 
         Grid2D { xs, ys, inner }
     }
+    pub fn get_dim(&self)->Vec2<GridNum>{
+        vec2(self.xs,self.ys)
+    }
     pub fn xdim(&self) -> GridNum {
         self.xs
     }
     pub fn ydim(&self) -> GridNum {
         self.ys
     }
-    pub fn get(&self, x: GridNum, y: GridNum) -> bool {
-        self.inner[(x * self.ys + y) as usize]
+    pub fn get(&self, p:Vec2<GridNum>) -> bool {
+        self.inner[(p.x * self.ys + p.y) as usize]
     }
-    pub fn set(&mut self, x: GridNum, y: GridNum,val:bool) {
-        self.inner.set( (x * self.ys + y) as usize, val)
+    pub fn set(&mut self, p:Vec2<GridNum>,val:bool) {
+        self.inner.set( (p.x * self.ys + p.y) as usize, val)
     }
     pub fn len(&self)->usize{
         (self.xs*self.ys) as usize

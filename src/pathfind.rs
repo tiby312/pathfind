@@ -75,6 +75,7 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
 
     use pathfinding::prelude::*;
 
+    /*
     #[derive(Copy,Clone,Eq,PartialEq,Hash)]
     struct Pos{
         x:GridNum,
@@ -84,57 +85,63 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
     fn pos(x:GridNum,y:GridNum)->Pos{
         Pos{x,y}
     }
+    */
 
-    impl Pos {
-        fn distance(&self, other: &Pos) -> u32 {
-            //manhatan distance
-            (absdiff(self.x, other.x) + absdiff(self.y, other.y)) as u32
-        }
 
-        fn successors(&self,grid:&Grid2D) -> Vec<(Pos, u32)> {
-            let &Pos{x, y} = self;
-
-            let mut v=Vec::new();
-            if x<grid.xdim()-1{
-                if grid.get(x+1,y){
-                    v.push(pos(x+1,y))
-                }
-            }
-            if x>1{
-                if grid.get(x-1,y){
-                    v.push(pos(x-1,y))   
-                }
-            }
-
-            if y>1{
-                if grid.get(x,y-1){
-                    v.push(pos(x,y-1))
-                }
-            }
-
-            if y<grid.ydim()-1{
-                if grid.get(x,y+1){
-                    v.push(pos(x,y+1))   
-                }
-            }
-
-            v.into_iter().map(|p| (p, 1)).collect()
-        }
+    fn distance(a:&Vec2<GridNum>, other: &Vec2<GridNum>) -> u32 {
+        //manhatan distance
+        (absdiff(a.x, other.x) + absdiff(a.y, other.y)) as u32
     }
 
-    let start=Pos{x:req.start.x,y:req.start.y};
-    let end  =Pos{x:req.end.x,y:req.end.y};
+    fn successors(a:&Vec2<GridNum>,grid:&Grid2D) -> Vec<(Vec2<GridNum>, u32)> {
+        
+        //let &Pos{x, y} = self;
 
-    let result = pathfinding::directed::astar::astar(&start,|p|p.successors(grid),|p|p.distance(&end),|p|p==&end);
+        let mut v=Vec::new();
+        if a.x<grid.xdim()-1{
+            let k=*a+vec2(1,0);
+            if grid.get(k){
+                v.push(k)
+            }
+        }
+        if a.x>1{
+            let k=*a+vec2(-1,0);
+            if grid.get(k){
+                v.push(k)   
+            }
+        }
+
+        if a.y>1{
+            let k=*a+vec2(0,-1);
+            if grid.get(k){
+                v.push(k)
+            }
+        }
+
+        if a.y<grid.ydim()-1{
+            let k=*a+vec2(0,1);
+            if grid.get(k){
+                v.push(k)   
+            }
+        }
+
+        v.into_iter().map(|p| (p, 1)).collect()
+    }
+
+
+    let start=req.start;
+    let end  =req.end;
+
+    let result = pathfinding::directed::astar::astar(&start,|p|successors(p,grid),|p|distance(p,&end),|p|p==&end);
 
     match result{
         Some((mut a,_))=>{
-            let mut cursor=vec2(start.x,start.y);
+            let mut cursor=start;
 
             let mut dirs=Vec::new();
             
             for curr in a.drain(..).skip(1).take(31){
-                let curr=vec2(curr.x,curr.y);
+            
                 use CardDir::*;
 
                 let dir=match curr-cursor{

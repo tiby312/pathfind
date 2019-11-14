@@ -40,7 +40,10 @@ pub struct Game{
 	pathfinder:PathFinder
 }
 
-fn pick_empty_spot(_grid:&GridDim2D)->Vec2<GridNum>{
+fn pick_empty_spot(grid:&GridDim2D)->Vec2<GridNum>{
+	let gg=&grid.inner;
+	let k:Vec<_>=Iterator2D::new(gg.get_dim()).filter(|a|!gg.get(*a)).collect();
+
 	unimplemented!();
 }
 
@@ -50,24 +53,24 @@ impl Game{
 		let dim=Rect::new(-100.,100.,-100.,100.);
 		let mut grid=GridDim2D{dim,inner:Grid2D::new(10,10)};
 
-		grid.inner.set(0,0,true);
-		grid.inner.set(0,9,true);
-		grid.inner.set(9,0,true);
-		grid.inner.set(9,9,true);
+		grid.inner.set(vec2(0,0),true);
+		grid.inner.set(vec2(0,9),true);
+		grid.inner.set(vec2(9,0),true);
+		grid.inner.set(vec2(9,9),true);
 
 
-		grid.inner.set(3,0,true);
-		grid.inner.set(3,1,true);
-		grid.inner.set(3,2,true);
-		grid.inner.set(3,3,true);
-		grid.inner.set(3,4,true);
+		grid.inner.set(vec2(3,0),true);
+		grid.inner.set(vec2(3,1),true);
+		grid.inner.set(vec2(3,2),true);
+		grid.inner.set(vec2(3,3),true);
+		grid.inner.set(vec2(3,4),true);
 
 
-		grid.inner.set(7,5,true);
-		grid.inner.set(7,6,true);
-		grid.inner.set(7,7,true);
-		grid.inner.set(7,8,true);
-		grid.inner.set(7,9,true);
+		grid.inner.set(vec2(7,5),true);
+		grid.inner.set(vec2(7,6),true);
+		grid.inner.set(vec2(7,7),true);
+		grid.inner.set(vec2(7,8),true);
+		grid.inner.set(vec2(7,9),true);
 
 
 		let bot_prop=BotProp{
@@ -93,7 +96,7 @@ impl Game{
 	}
 	pub fn wall_iter<'a>(&'a self)->impl Iterator<Item=Vec2<WorldNum>> + 'a{
 		let a = Iterator2D::new(vec2(self.grid.inner.xdim(),self.grid.inner.ydim()));
-		a.filter(move |a|self.grid.inner.get(a.x,a.y)).map(move |a|self.grid.convert_to_world(a))
+		a.filter(move |a|self.grid.inner.get(*a)).map(move |a|self.grid.convert_to_world(a))
 	}
 
 	pub fn bot_len(&self)->usize{
