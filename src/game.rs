@@ -19,7 +19,7 @@ enum GridBotState{
 
 struct GridBot{
 	bot:Bot,
-	pos:Vec2<GridNum>,
+	pos:Vec2<GridNum>, //needed to infer the next step
 	state:GridBotState
 }
 
@@ -34,6 +34,7 @@ fn move_to_point(_bot:&mut Bot,_target:Vec2<WorldNum>) -> bool{
 
 
 pub struct Game{
+    bot_prop:BotProp,
 	grid:GridDim2D,
 	bots:Vec<GridBot>,
 	pathfinder:PathFinder
@@ -42,19 +43,72 @@ pub struct Game{
 fn pick_empty_spot(_grid:&GridDim2D)->Vec2<GridNum>{
 	unimplemented!();
 }
+
 impl Game{
 	pub fn new()->Game{
 		let pathfinder=PathFinder::new();
-		let bots=Vec::new();
-		let grid=GridDim2D{dim:Rect::new(0.,100.,0.,100.),inner:Grid2D::new(10,10)};
-		Game{grid,bots,pathfinder}
+		let dim=Rect::new(-100.,100.,-100.,100.);
+		let mut grid=GridDim2D{dim,inner:Grid2D::new(10,10)};
+
+		grid.inner.set(0,0,true);
+		grid.inner.set(0,9,true);
+		grid.inner.set(9,0,true);
+		grid.inner.set(9,9,true);
+
+
+		grid.inner.set(3,0,true);
+		grid.inner.set(3,1,true);
+		grid.inner.set(3,2,true);
+		grid.inner.set(3,3,true);
+		grid.inner.set(3,4,true);
+
+
+		grid.inner.set(7,5,true);
+		grid.inner.set(7,6,true);
+		grid.inner.set(7,7,true);
+		grid.inner.set(7,8,true);
+		grid.inner.set(7,9,true);
+
+
+		let bot_prop=BotProp{
+            radius:Dist::new(12.0),
+            collision_drag:0.003,
+            collision_push:1.3,
+            minimum_dis_sqr:0.0001,
+            viscousity_coeff:0.03
+        };
+
+        let num_bot=1000;
+        let s=dists::grid::Grid::new(dim,num_bot);
+    	let bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
+    		let bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
+    		GridBot{bot,pos:grid.convert_to_grid(pos),state:GridBotState::DoingNothing}
+    	}).collect();
+
+		Game{grid,bots,pathfinder,bot_prop}
 	}
+
+	pub fn wall_len(&self)->usize{
+		self.grid.inner.len()
+	}
+	pub fn wall_iter<'a>(&'a self)->impl Iterator<Item=Vec2<WorldNum>> + 'a{
+		let a = Iterator2D::new(vec2(self.grid.inner.xdim(),self.grid.inner.ydim()));
+		a.filter(move |a|self.grid.inner.get(a.x,a.y)).map(move |a|self.grid.convert_to_world(a))
+	}
+
+	pub fn bot_len(&self)->usize{
+		self.bots.len()
+	}
+	pub fn bots_iter(&self)->impl Iterator<Item=&Bot>{
+		self.bots.iter().map(|a|&a.bot)
+	}
+
 	pub fn step(&mut self){
 
 		let mut path_requests=Vec::new();
 		for (i,b) in self.bots.iter_mut().enumerate(){
 			if b.state == GridBotState::DoingNothing{
-				let req = PathFindInfo{start:b.pos,end:pick_empty_spot(&self.grid),bot_index:i};
+				let req = PathFindInfo{start:self.grid.convert_to_grid(b.bot.pos),end:pick_empty_spot(&self.grid),bot_index:i};
 				b.state = GridBotState::Thinking;
 				path_requests.push(req);
 			}
@@ -67,6 +121,7 @@ impl Game{
 			assert_eq!(b.state,GridBotState::Thinking);
 			match res.path{
 				Some(path)=>{
+
 					b.state=GridBotState::Moving(b.pos,path.iter());		
 				},
 				None=>{
@@ -92,8 +147,5 @@ impl Game{
 				}
 			}
 		}
-		
-
-
 	}
 }

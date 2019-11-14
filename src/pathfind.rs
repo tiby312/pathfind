@@ -34,7 +34,7 @@ const DELAY:usize=60;
 
 
 mod test{
-    
+    use super::*;
     
     #[test]
     fn test(){
