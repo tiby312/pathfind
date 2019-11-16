@@ -6,6 +6,9 @@ use dinotree::axgeom::*;
 use dinotree::axgeom;
 
 
+#[macro_use]
+extern crate more_asserts;
+
 
 pub mod grid;
 pub mod pathfind;

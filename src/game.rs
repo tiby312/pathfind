@@ -10,26 +10,27 @@ use crate::axgeom::*;
 use duckduckgeo::bot::*;
 
 
-#[derive(Eq,PartialEq,Debug)]
+#[derive(Eq,PartialEq,Debug,Copy,Clone)]
 enum GridBotState{
 	DoingNothing,
 	Thinking,
-	Moving(Vec2<GridNum>,ShortPathIter)
+	Moving(PathDiagAdapter)
 }
 
-struct GridBot{
+
+
+
+pub struct GridBot{
 	bot:Bot,
-	pos:Vec2<GridNum>, //needed to infer the next step
 	state:GridBotState
 }
+impl GridBot{
+	pub fn get(&self)->&Bot{
+		&self.bot
+	}
+}
 
 
-fn update_bot(_bot:&mut Bot){
-	unimplemented!()
-}
-fn move_to_point(_bot:&mut Bot,_target:Vec2<WorldNum>) -> bool{
-	unimplemented!()
-}
 
 
 
@@ -40,38 +41,24 @@ pub struct Game{
 	pathfinder:PathFinder
 }
 
-fn pick_empty_spot(grid:&GridDim2D)->Vec2<GridNum>{
-	let gg=&grid.inner;
-	let k:Vec<_>=Iterator2D::new(gg.get_dim()).filter(|a|!gg.get(*a)).collect();
 
-	unimplemented!();
-}
+const GRID_STR:&str= "\
+████████████████
+█    █   █     █
+█    █   █  █  █
+         █  █
+     █████  █
+       █
+█      █
+█   
+████████
+";
 
 impl Game{
 	pub fn new()->Game{
 		let pathfinder=PathFinder::new();
-		let dim=Rect::new(-100.,100.,-100.,100.);
-		let mut grid=GridDim2D{dim,inner:Grid2D::new(10,10)};
-
-		grid.inner.set(vec2(0,0),true);
-		grid.inner.set(vec2(0,9),true);
-		grid.inner.set(vec2(9,0),true);
-		grid.inner.set(vec2(9,9),true);
-
-
-		grid.inner.set(vec2(3,0),true);
-		grid.inner.set(vec2(3,1),true);
-		grid.inner.set(vec2(3,2),true);
-		grid.inner.set(vec2(3,3),true);
-		grid.inner.set(vec2(3,4),true);
-
-
-		grid.inner.set(vec2(7,5),true);
-		grid.inner.set(vec2(7,6),true);
-		grid.inner.set(vec2(7,7),true);
-		grid.inner.set(vec2(7,8),true);
-		grid.inner.set(vec2(7,9),true);
-
+		let dim=Rect::new(0.0,1920.,0.0,1080.);
+		let mut grid=GridDim2D{dim,inner:Grid2D::from_str(vec2(16,9),GRID_STR)};
 
 		let bot_prop=BotProp{
             radius:Dist::new(12.0),
@@ -85,35 +72,49 @@ impl Game{
         let s=dists::grid::Grid::new(dim,num_bot);
     	let bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
-    		GridBot{bot,pos:grid.convert_to_grid(pos),state:GridBotState::DoingNothing}
+    		GridBot{bot,state:GridBotState::DoingNothing}
     	}).collect();
 
 		Game{grid,bots,pathfinder,bot_prop}
 	}
 
-	pub fn wall_len(&self)->usize{
-		self.grid.inner.len()
-	}
-	pub fn wall_iter<'a>(&'a self)->impl Iterator<Item=Vec2<WorldNum>> + 'a{
-		let a = Iterator2D::new(vec2(self.grid.inner.xdim(),self.grid.inner.ydim()));
-		a.filter(move |a|self.grid.inner.get(*a)).map(move |a|self.grid.convert_to_world(a))
+	
+	pub fn get_wall_grid(&self)->&GridDim2D{
+		&self.grid
 	}
 
 	pub fn bot_len(&self)->usize{
 		self.bots.len()
 	}
-	pub fn bots_iter(&self)->impl Iterator<Item=&Bot>{
-		self.bots.iter().map(|a|&a.bot)
+
+
+	pub fn get_bots(&self)->(&BotProp,&[GridBot]){
+		(&self.bot_prop,&self.bots)
 	}
 
 	pub fn step(&mut self){
 
 		let mut path_requests=Vec::new();
 		for (i,b) in self.bots.iter_mut().enumerate(){
-			if b.state == GridBotState::DoingNothing{
-				let req = PathFindInfo{start:self.grid.convert_to_grid(b.bot.pos),end:pick_empty_spot(&self.grid),bot_index:i};
+			if b.state ==GridBotState::DoingNothing{
+				let start =self.grid.convert_to_grid(b.bot.pos);
+
+				let start=if self.grid.inner.get(start){
+					find_closest_empty(&self.grid.inner,start).unwrap()
+				}else{
+					start
+				};
+
+				let end = pick_empty_spot(&self.grid.inner).unwrap();
+					
+				let req = PathFindInfo{start,end,bot_index:i};
+				//dbg!(req.end);
 				b.state = GridBotState::Thinking;
 				path_requests.push(req);
+
+				//println!("queueing {:?}",(start,end));
+				//assert!(!self.grid.inner.get(start));
+				
 			}
 		}
 
@@ -124,26 +125,41 @@ impl Game{
 			assert_eq!(b.state,GridBotState::Thinking);
 			match res.path{
 				Some(path)=>{
+					//dbg!(b.pos,path);
+					//println!("Attempting to go to {:?}",(b.pos,self.grid.convert_to_world(b.pos)));
+					//println!("starting to new. current pos={:?}",(b.pos,b.bot.pos));
+					let k=PathDiagAdapter::new(PathPointIter::new(res.info.start,path.iter()));
 
-					b.state=GridBotState::Moving(b.pos,path.iter());		
+					//let _ = self.grid.inner.draw_map_and_path(k.inner);
+					//println!("starting new path path={:?}",k);
+					b.state=GridBotState::Moving(k);		
 				},
 				None=>{
 
+					//println!("failed for {:?}",res);
+					//println!("grid looks like={:?}",&self.grid.inner);
+		
 				}
 			}
 		}
 
-		
 		for b in self.bots.iter_mut(){
-			update_bot(&mut b.bot);
+			b.bot.update();
 
-			if let GridBotState::Moving(ref mut curr_target,ref mut path)=&mut b.state{
-				if move_to_point(&mut b.bot,self.grid.convert_to_world(*curr_target)){
-					match path.next(){
+			if let GridBotState::Moving(ref mut pointiter)=&mut b.state{
+				
+				if b.bot.move_to_point(self.grid.convert_to_world(pointiter.inner.pos())){
+					
+					match pointiter.next(&self.grid.inner){
 						Some(target)=>{
-							*curr_target+=target.into_vec();
+							//dbg!(*curr_target,target,target.into_vec(),"hit waypoint");
+							//b.pos=*curr_target;
+							//println!(".Attempting to go to {:?}",target);
+							//println!("fo={:?}",self.grid.convert_to_world(*curr_target));
 						},
 						None=>{
+							b.bot.vel=vec2same(0.0);
+							//println!("reached target i guess");
 							b.state=GridBotState::DoingNothing;
 						}
 					}

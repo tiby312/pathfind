@@ -38,11 +38,11 @@ mod test{
     
     #[test]
     fn test(){
-        let mut grid=Grid2D::new(10,10);
+        let mut grid=Grid2D::new(vec2(10,10));
 
         for i in 0..10{
             for j in 0..10{
-                grid.set(i,j,true);
+                grid.set(vec2(i,j),false);
             }
         }
 
@@ -57,7 +57,7 @@ mod test{
         for _ in 0..59{
             let k =k.handle_par(&grid,vec!());
             
-            dbg!(k);
+            //dbg!(k);
         }
 
         let k =k.handle_par(&grid,vec!());    
@@ -88,39 +88,35 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
     */
 
 
-    fn distance(a:&Vec2<GridNum>, other: &Vec2<GridNum>) -> u32 {
-        //manhatan distance
-        (absdiff(a.x, other.x) + absdiff(a.y, other.y)) as u32
-    }
 
     fn successors(a:&Vec2<GridNum>,grid:&Grid2D) -> Vec<(Vec2<GridNum>, u32)> {
         
-        //let &Pos{x, y} = self;
+
 
         let mut v=Vec::new();
-        if a.x<grid.xdim()-1{
+        if a.x<grid.dim().x-1{
             let k=*a+vec2(1,0);
-            if grid.get(k){
+            if !grid.get(k){
                 v.push(k)
             }
         }
-        if a.x>1{
+        if a.x>0{
             let k=*a+vec2(-1,0);
-            if grid.get(k){
+            if !grid.get(k){
                 v.push(k)   
             }
         }
 
-        if a.y>1{
+        if a.y>0{
             let k=*a+vec2(0,-1);
-            if grid.get(k){
+            if !grid.get(k){
                 v.push(k)
             }
         }
 
-        if a.y<grid.ydim()-1{
+        if a.y<grid.dim().y-1{
             let k=*a+vec2(0,1);
-            if grid.get(k){
+            if !grid.get(k){
                 v.push(k)   
             }
         }
@@ -132,7 +128,7 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
     let start=req.start;
     let end  =req.end;
 
-    let result = pathfinding::directed::astar::astar(&start,|p|successors(p,grid),|p|distance(p,&end),|p|p==&end);
+    let result = pathfinding::directed::astar::astar(&start,|p|successors(p,grid),|p|p.manhattan_dis(end) as u32,|p|p==&end);
 
     match result{
         Some((mut a,_))=>{
