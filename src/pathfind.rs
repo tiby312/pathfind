@@ -71,24 +71,7 @@ mod test{
 
 fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
     //TODO this function does a bunch of dynamic allocation. how to avoid?
-
-
     use pathfinding::prelude::*;
-
-    /*
-    #[derive(Copy,Clone,Eq,PartialEq,Hash)]
-    struct Pos{
-        x:GridNum,
-        y:GridNum
-    };
-
-    fn pos(x:GridNum,y:GridNum)->Pos{
-        Pos{x,y}
-    }
-    */
-
-
-
     fn successors(a:&Vec2<GridNum>,grid:&Grid2D) -> Vec<(Vec2<GridNum>, u32)> {
         
 

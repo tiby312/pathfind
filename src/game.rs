@@ -63,7 +63,7 @@ impl Game{
 		let bot_prop=BotProp{
             radius:Dist::new(12.0),
             collision_drag:0.003,
-            collision_push:1.3,
+            collision_push:0.5,
             minimum_dis_sqr:0.0001,
             viscousity_coeff:0.03
         };
@@ -143,28 +143,56 @@ impl Game{
 			}
 		}
 
-		for b in self.bots.iter_mut(){
-			b.bot.update();
 
-			if let GridBotState::Moving(ref mut pointiter)=&mut b.state{
-				
-				if b.bot.move_to_point(self.grid.convert_to_world(pointiter.inner.pos())){
+		use dinotree::prelude::*;
+		use axgeom;
+		use axgeom::ordered_float::*;
+		let bot_prop=&self.bot_prop;
+            
+        let mut bots:Vec<BBoxMut<NotNan<f32>,GridBot>>=create_bbox_mut(&mut self.bots,|bot|{
+            bot.bot.create_bbox(bot_prop).inner_try_into().unwrap()
+        });
+
+        let mut tree=DinoTreeBuilder::new(axgeom::YAXISS,&mut bots).build_par();
+
+        
+        dinotree_alg::colfind::QueryBuilder::new(&mut tree).query_par(|mut a,mut b|{
+            bot_prop.collide(&mut a.inner_mut().bot,&mut b.inner_mut().bot);
+        });
+
+
+		for b in self.bots.iter_mut(){
+			
+			let target_radius=self.grid.cell_radius().x/2.0;
+
+			match &mut b.state{
+				GridBotState::Moving(ref mut pointiter)=>{
+
 					
-					match pointiter.next(&self.grid.inner){
-						Some(target)=>{
-							//dbg!(*curr_target,target,target.into_vec(),"hit waypoint");
-							//b.pos=*curr_target;
-							//println!(".Attempting to go to {:?}",target);
-							//println!("fo={:?}",self.grid.convert_to_world(*curr_target));
-						},
-						None=>{
-							b.bot.vel=vec2same(0.0);
-							//println!("reached target i guess");
-							b.state=GridBotState::DoingNothing;
+					if b.bot.move_to_point(self.grid.convert_to_world_center(pointiter.inner.pos()),target_radius){
+						
+						match pointiter.next(&self.grid.inner){
+							Some(target)=>{
+								//dbg!(*curr_target,target,target.into_vec(),"hit waypoint");
+								//b.pos=*curr_target;
+								//println!(".Attempting to go to {:?}",target);
+								//println!("fo={:?}",self.grid.convert_to_world(*curr_target));
+							},
+							None=>{
+								//b.bot.vel=vec2same(0.0);
+								//println!("reached target i guess");
+								b.state=GridBotState::DoingNothing;
+							}
 						}
 					}
+				},
+				GridBotState::Thinking |
+				GridBotState::DoingNothing=>{
+					b.bot.move_to_point(b.bot.pos,target_radius);
 				}
 			}
+
+			b.bot.update();
 		}
 	}
 }

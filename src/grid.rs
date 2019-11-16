@@ -239,10 +239,10 @@ impl fmt::Debug for Grid2D {
 
 
 pub fn pick_empty_spot(grid:&Grid2D)->Option<Vec2<GridNum>>{
+    //TODO inefficient
     use rand::prelude::*;
 
-    let gg=grid;
-    let mut k:Vec<_>=Iterator2D::new(gg.dim()).filter(|a|!gg.get(*a)).collect();
+    let mut k:Vec<_>=Iterator2D::new(grid.dim()).filter(|a|!grid.get(*a)).collect();
 
     let mut rng = rand::thread_rng();
     k.shuffle(&mut rng);
@@ -251,8 +251,13 @@ pub fn pick_empty_spot(grid:&Grid2D)->Option<Vec2<GridNum>>{
 }
 
 pub fn find_closest_empty(grid:&Grid2D,start:Vec2<GridNum>)->Option<Vec2<GridNum>>{
-    pick_empty_spot(grid)
-    //unimplemented!();    
+    //TODO inefficient.
+
+    let mut k:Vec<_>=Iterator2D::new(grid.dim()).filter(|a|!grid.get(*a)).map(|a|(a,(start-a).magnitude2() )).collect();
+
+    k.sort_by(|a,b|a.1.cmp(&b.1));
+
+    k.first().map(|a|a.0)
 }
 
 
@@ -276,10 +281,10 @@ pub fn ray_cast(grid:&GridDim2D,ray:duckduckgeo::Ray<WorldNum>)->GridRayCastResu
         let mut cursor=start;
 
         //TODO inefficient to calculate them all
-        let mut l=grid.convert_to_world(cursor+vec2(-1,0) );
-        let mut r=grid.convert_to_world(cursor+vec2(1,0) );
-        let mut u=grid.convert_to_world(cursor+vec2(0,-1) );
-        let mut d=grid.convert_to_world(cursor+vec2(0,1) );
+        let mut l=grid.convert_to_world_topleft(cursor+vec2(-1,0) );
+        let mut r=grid.convert_to_world_topleft(cursor+vec2(1,0) );
+        let mut u=grid.convert_to_world_topleft(cursor+vec2(0,-1) );
+        let mut d=grid.convert_to_world_topleft(cursor+vec2(0,1) );
 
         let vals=[l,r,u,d];
 
@@ -368,10 +373,10 @@ impl GridDim2D{
     pub fn cell_radius(&self)->Vec2<WorldNum>{
         let spacingx=(self.dim.x.right-self.dim.x.left)/self.inner.dim().x as f32;
         let spacingy=(self.dim.y.right-self.dim.y.left)/self.inner.dim().y as f32;
-        vec2(spacingx/2.0,spacingy/2.0)
+        vec2(spacingx,spacingy)
     }
 
-    pub fn convert_to_world(&self,val:Vec2<GridNum>)->Vec2<WorldNum>{
+    pub fn convert_to_world_topleft(&self,val:Vec2<GridNum>)->Vec2<WorldNum>{
         let top_left=vec2(self.dim.x.left,self.dim.y.left);
 
         let spacingx=(self.dim.x.right-self.dim.x.left)/self.inner.dim().x as f32;
@@ -379,7 +384,19 @@ impl GridDim2D{
         
 
         let val=vec2(spacingx * val.x as f32,spacingy*val.y as f32);
+        //let half=vec2(spacingx,spacingy)/2.0;
         top_left+val
+    }
+    pub fn convert_to_world_center(&self,val:Vec2<GridNum>)->Vec2<WorldNum>{
+        let top_left=vec2(self.dim.x.left,self.dim.y.left);
+
+        let spacingx=(self.dim.x.right-self.dim.x.left)/self.inner.dim().x as f32;
+        let spacingy=(self.dim.y.right-self.dim.y.left)/self.inner.dim().y as f32;
+        
+
+        let val=vec2(spacingx * val.x as f32,spacingy*val.y as f32);
+        let half=vec2(spacingx,spacingy)/2.0;
+        top_left+val+half
     }
 /*
     pub fn get_rect(&self, i: usize, j: usize) -> Rect<f32> {
