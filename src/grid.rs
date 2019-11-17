@@ -208,10 +208,6 @@ impl Grid2D {
 
 
 pub type WorldNum=f32;
-pub struct GridDim2D{
-    pub dim:Rect<WorldNum>,
-    pub inner:Grid2D
-}
 
 
 #[test]
@@ -260,14 +256,175 @@ pub fn find_closest_empty(grid:&Grid2D,start:Vec2<GridNum>)->Option<Vec2<GridNum
     k.first().map(|a|a.0)
 }
 
-
+#[derive(Copy,Clone,Debug)]
 pub enum GridRayCastResult{
-    InsideWall{closest_non_wall:Option<Vec2<GridNum>>},
-    Found{t:Vec2<WorldNum>,cell:Vec2<GridNum>,dirhit:CardDir},
+    Found{t:WorldNum,cell:Vec2<GridNum>,dirhit:CardDir},
     NotFound
 }
 
-pub fn ray_cast(grid:&GridDim2D,ray:duckduckgeo::Ray<WorldNum>)->GridRayCastResult{
+
+pub mod raycast{
+    use core::iter::*;
+    use crate::grid::*;
+    use duckduckgeo::Ray;
+
+    pub struct CollideCellEvent{
+        //Cell colliding with
+        pub cell:Vec2<GridNum>,
+        //Direction in which we are colliding with it.
+        pub dir_hit:CardDir,
+    }
+    pub struct RayCaster<'a>{
+        grid:&'a GridViewPort,
+        ray:Ray<WorldNum>,
+        dir_sign:Vec2<GridNum>,
+        next_dir_sign:Vec2<GridNum>,
+        current_grid:Vec2<GridNum>,
+        tval:WorldNum
+    }
+    impl<'a> RayCaster<'a>{
+        pub fn new(grid:&'a GridViewPort,ray:Ray<WorldNum>)->Option<RayCaster>{
+            let dir_sign=vec2(if ray.dir.x>0.0{1}else{0},if ray.dir.y>0.0{1}else{0});
+            let next_dir_sign=vec2(if ray.dir.x>0.0{1}else{-1},if ray.dir.y>0.0{1}else{-1});
+            
+            let current_grid=grid.to_grid(ray.point);
+            if ray.dir.x*ray.dir.x+ray.dir.y*ray.dir.y>0.0{
+                Some(RayCaster{grid,ray,dir_sign,next_dir_sign,current_grid,tval:0.0})
+            }else{
+                None
+            }
+        }
+    }
+    impl FusedIterator for RayCaster<'_>{}
+    impl Iterator for RayCaster<'_>{
+        type Item=CollideCellEvent;
+        fn next(&mut self)->Option<Self::Item>{
+            let grid=&self.grid;
+            let ray=&self.ray;
+            let dir_sign=self.dir_sign;
+
+            let next_grid=self.current_grid+dir_sign;
+            let next_grid_pos=grid.to_world_topleft(next_grid);
+
+
+            //A ray can be described as follows:
+            //rx(t)=ray.dir.x*tval+ray.point.x
+            //ry(t)=ray.dir.y*tval+ray.point.y
+            //
+            //The ray itself is all the points that satify those two equations,
+            //where tval>0.
+            //
+            //As tval increases, so does the ray length.
+            //
+            //
+            //We want to find out when a ray intersects
+            //th next cell. A ray are intersect the cell either on
+            //a x axis or in a y axis.
+            //so we have two equations.
+            //
+            //Equation for when it hits the xaxis  
+            //next_grid_pos.x=ray.dir.x*tval+ray.point.x
+            //
+            //Equation for when it hits the yaxis
+            //next_grid_pos.y=ray.dir.y*tval+ray.point.y
+            //
+            //In both cases, lets solve for tval.
+            //The equation with the smaller tval is the one
+            //the ray will hit first.
+            //
+            //If the tval for the x equation is smaller, the ray
+            //will intersect the Y axis first.
+            //
+
+            let tvalx=(next_grid_pos.x-ray.point.x)/ray.dir.x;
+            let tvaly=(next_grid_pos.y-ray.point.y)/ray.dir.y;
+
+            
+            if tvalx.is_finite(){
+                assert_gt!(tvalx,0.0,"{:?}",(ray,self.current_grid,next_grid));
+            }
+            if tvaly.is_finite(){
+                assert_gt!(tvaly,0.0,"{:?}",(ray,self.current_grid,next_grid));
+            }
+
+            let mut dir_hit;
+            if tvalx<=tvaly || tvaly.is_infinite() || tvaly.is_nan(){
+                if dir_sign.x==1{
+                    //hit left side
+                    dir_hit=CardDir::L;
+                    //1
+                }else{
+                    dir_hit=CardDir::R;
+                    //hit right side
+                }
+                self.tval=tvalx;
+                self.current_grid.x+=self.next_dir_sign.x;
+            }else if tvaly<tvalx  || tvalx.is_infinite() || tvalx.is_nan(){
+                if dir_sign.y==1{
+                    //hit top side
+                    dir_hit=CardDir::U;
+                }else{
+                    //hit bottom side
+                    dir_hit=CardDir::L;
+                }
+                self.tval=tvaly;
+                self.current_grid.y+=self.next_dir_sign.y;
+            }else{
+                unreachable!("{:?}, {:?}",(tvalx,tvaly),ray);
+            }
+            Some(CollideCellEvent{cell:next_grid,dir_hit})
+        }
+    }
+}
+
+
+
+/*
+pub fn ray_compute_intersection_tvalue(grid:&GridDim2D,ray:&duckduckgeo::Ray<WorldNum>)->Vec2<WorldNum>{
+    //r(t)=ray.dir*t+ray.point
+    //r(t)-ray.point=ray.dir*t
+    //(r(t)-ray.point)/ray.dir=t
+
+
+    if ray.dir.x*ray.dir.x+ray.dir.y*ray.dir.y{
+        let mut t=0;
+        
+        let dir_sign_x=ray.dir.x > 0 {1}else{0};
+        let dir_sign_y=ray.dir.y > 0 {1}else{0};
+        
+           
+        if dx<dy{
+            t=dt;
+            
+            let dd=if ray.dir.x<0.0{
+                CardDir::R
+            }else{
+                CardDir::L
+            };
+            GridRayCastResult::Found{t,cell,dirhit:dd}
+        }else{
+            t=dy;
+
+            let dd=if ray.dir.y<0.0{
+                CardDir::D
+            }else{
+                CardDir::U
+            };
+            GridRayCastResult::Found{t,cell,dirhit:dd}
+        }
+    }else{
+        NotFound
+    }
+
+}
+*/
+
+/*
+
+
+
+
+pub fn ray_cast(grid:&GridDim2D,ray:duckduckgeo::Ray<WorldNum>,max:Vec2<WorldNum>)->GridRayCastResult{
     let start=grid.convert_to_grid(ray.point);
     if grid.inner.get(start){
         let closest_non_wall =find_closest_empty(&grid.inner,start);
@@ -280,14 +437,24 @@ pub fn ray_cast(grid:&GridDim2D,ray:duckduckgeo::Ray<WorldNum>)->GridRayCastResu
     loop{
         let mut cursor=start;
 
+
+
+
         //TODO inefficient to calculate them all
-        let mut l=grid.convert_to_world_topleft(cursor+vec2(-1,0) );
-        let mut r=grid.convert_to_world_topleft(cursor+vec2(1,0) );
-        let mut u=grid.convert_to_world_topleft(cursor+vec2(0,-1) );
-        let mut d=grid.convert_to_world_topleft(cursor+vec2(0,1) );
+        let l = duckduckgeo::ray_compute_intersection_tvalue(&ray,XAXISS, grid.convert_to_world_topleft(cursor).x);
+        let u = duckduckgeo::ray_compute_intersection_tvalue(&ray,YAXISS, grid.convert_to_world_topleft(cursor).y);
+        let r = duckduckgeo::ray_compute_intersection_tvalue(&ray,XAXISS, grid.convert_to_world_topleft(cursor+vec2(1,0)).x);
+        let d = duckduckgeo::ray_compute_intersection_tvalue(&ray,XAXISS, grid.convert_to_world_topleft(cursor+vec2(0,1)).y);
 
-        let vals=[l,r,u,d];
 
+        let vals=[
+            (l,vec2(-1, 0),CardDir::R),
+            (u,vec2(0,  -1),CardDir::D),
+            (r,vec2(1,0),CardDir::L),
+            (d,vec2(0,1),CardDir::U)
+        ];
+        /*
+        dbg!(vals);
 
         let ts:Vec<_>=vals.iter().map(|a|{
             //r(t)=ray.dir*t+ray.point
@@ -299,25 +466,38 @@ pub fn ray_cast(grid:&GridDim2D,ray:duckduckgeo::Ray<WorldNum>)->GridRayCastResu
             vec2(dx,dy)
         }).collect();
 
-
-
+        
         let a=[
-            (ts[0],vec2(-1, 0),CardDir::R),
+            (ts[0],,CardDir::R),
             (ts[1],vec2( 1, 0),CardDir::L),
             (ts[2],vec2( 0,-1),CardDir::D),
             (ts[3],vec2( 0, 1),CardDir::U)
         ];
+        */
+        //dbg!(cursor,vals);
 
         
-        let ans=a.iter().filter(|a|a.0.magnitude2()>currentT).min_by(|a,b|a.0.magnitude2().partial_cmp(&b.0.magnitude2()).unwrap());
-        let ans=ans.unwrap();
+        let ans=vals.iter().filter(|a|a.0.is_some());
+        let ans=ans.filter(|a|a.0.unwrap()>currentT); //strictly greater so that we actually make progress
+        let ans=ans.min_by(|a,b|a.0.unwrap().partial_cmp(&b.0.unwrap()).unwrap() );
+
+        let ans=match ans{
+            Some(ans)=>{
+                ans
+            },
+            None=>{
+                return GridRayCastResult::NotFound;
+            }
+        };
+
 
         let next_cell=cursor+ans.1;
         
+
         match grid.inner.get_option(next_cell){
             Some(hit)=>{
                 if hit{
-                    return GridRayCastResult::Found{t:ans.0,cell:next_cell,dirhit:ans.2};
+                    return GridRayCastResult::Found{t:ans.0.unwrap(),cell:next_cell,dirhit:ans.2};
                 }
             },
             None=>{
@@ -325,22 +505,53 @@ pub fn ray_cast(grid:&GridDim2D,ray:duckduckgeo::Ray<WorldNum>)->GridRayCastResu
             }
         }
 
-        currentT=ans.0.magnitude2();
+        currentT=ans.0.unwrap();
         cursor=next_cell;
     }
 
 
 }
+*/
 
 
-use crate::short_path::ShortPath;
-impl GridDim2D{
+/*
+#[derive(Debug)]
+pub struct ToGridError{
+    dim:Rect<WorldNum>,
+    pos:Vec2<WorldNum>
+}
+
+#[derive(Debug)]
+pub struct ToWorldError{
+    dim:Vec2<GridNum>,
+    pos:Vec2<GridNum>
+}
+*/
+
+pub struct GridViewPort{
+    pub spacing:Vec2<WorldNum>,
+    pub origin:Vec2<WorldNum>
+}
+impl GridViewPort{
+
+    pub fn to_world_topleft(&self,pos:Vec2<GridNum>)->Vec2<WorldNum>{
+        pos.inner_as().scale(self.spacing)+self.origin
+    }
+
+    pub fn to_world_center(&self,pos:Vec2<GridNum>)->Vec2<WorldNum>{
+        pos.inner_as().scale(self.spacing)+self.origin+self.spacing/2.0
+    }
     
+    pub fn to_grid(&self,pos:Vec2<WorldNum>)->Vec2<GridNum>{
+    
+        let result = (pos-self.origin).inv_scale(self.spacing);
 
-    pub fn convert_to_grid(&self,pos:Vec2<WorldNum>)->Vec2<GridNum>{
-        
-        let xdim = self.inner.dim().x;
-        let ydim = self.inner.dim().y;
+        result.inner_as()
+
+
+        /*
+        let xdim = self.grid_dim.x;
+        let ydim = self.grid_dim.y;
 
         let dim: &Rect<f32> = &self.dim;
 
@@ -365,39 +576,63 @@ impl GridDim2D{
 
        
         vec2(i,j)
-    
-
+        */
     }
 
 
     pub fn cell_radius(&self)->Vec2<WorldNum>{
-        let spacingx=(self.dim.x.right-self.dim.x.left)/self.inner.dim().x as f32;
-        let spacingy=(self.dim.y.right-self.dim.y.left)/self.inner.dim().y as f32;
+        self.spacing
+        /*
+        let spacingx=(self.dim.x.right-self.dim.x.left)/self.grid_dim.x as f32;
+        let spacingy=(self.dim.y.right-self.dim.y.left)/self.grid_dim.y as f32;
         vec2(spacingx,spacingy)
+        */
     }
+    /*
+    pub fn convert_to_world_topleft(&self,val:Vec2<GridNum>)->Result<Vec2<WorldNum>,ToWorldError>{
+        if val.x>=self.grid_dim.x || val.y>=self.grid_dim.y{
+            Err(ToWorldError{dim:self.grid_dim,pos:val})
+        }else{
+            let top_left=vec2(self.dim.x.left,self.dim.y.left);
 
-    pub fn convert_to_world_topleft(&self,val:Vec2<GridNum>)->Vec2<WorldNum>{
-        let top_left=vec2(self.dim.x.left,self.dim.y.left);
+            let spacingx=(self.dim.x.right-self.dim.x.left)/self.grid_dim.x as f32;
+            let spacingy=(self.dim.y.right-self.dim.y.left)/self.grid_dim.y as f32;
+            
 
-        let spacingx=(self.dim.x.right-self.dim.x.left)/self.inner.dim().x as f32;
-        let spacingy=(self.dim.y.right-self.dim.y.left)/self.inner.dim().y as f32;
-        
-
-        let val=vec2(spacingx * val.x as f32,spacingy*val.y as f32);
-        //let half=vec2(spacingx,spacingy)/2.0;
-        top_left+val
+            let val=vec2(spacingx * val.x as f32,spacingy*val.y as f32);
+            //let half=vec2(spacingx,spacingy)/2.0;
+            Ok(top_left+val)
+        }
     }
-    pub fn convert_to_world_center(&self,val:Vec2<GridNum>)->Vec2<WorldNum>{
-        let top_left=vec2(self.dim.x.left,self.dim.y.left);
+    pub fn convert_to_world_center(&self,val:Vec2<GridNum>)->Result<Vec2<WorldNum>,ToWorldError>{
+        if val.x>=self.grid_dim.x || val.y>=self.grid_dim.y{
+            Err(ToWorldError{dim:self.grid_dim,pos:val})
+        }else{
+            let top_left=vec2(self.dim.x.left,self.dim.y.left);
 
-        let spacingx=(self.dim.x.right-self.dim.x.left)/self.inner.dim().x as f32;
-        let spacingy=(self.dim.y.right-self.dim.y.left)/self.inner.dim().y as f32;
-        
+            let spacingx=(self.dim.x.right-self.dim.x.left)/self.grid_dim.x as f32;
+            let spacingy=(self.dim.y.right-self.dim.y.left)/self.grid_dim.y as f32;
+            
 
-        let val=vec2(spacingx * val.x as f32,spacingy*val.y as f32);
-        let half=vec2(spacingx,spacingy)/2.0;
-        top_left+val+half
+            let val=vec2(spacingx * val.x as f32,spacingy*val.y as f32);
+            let half=vec2(spacingx,spacingy)/2.0;
+            Ok(top_left+val+half)
+        }
     }
+    */
+}
+
+/*
+pub struct GridDim2D{
+    pub dim:Rect<WorldNum>,
+    pub inner:Grid2D
+}
+
+
+use crate::short_path::ShortPath;
+impl GridDim2D{
+    
+
 /*
     pub fn get_rect(&self, i: usize, j: usize) -> Rect<f32> {
         let dim = self.dim;
@@ -457,3 +692,4 @@ impl GridDim2D{
     }
     */
 }
+*/
