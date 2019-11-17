@@ -1,6 +1,9 @@
 
 use crate::axgeom::*;
-use crate::grid::*;
+
+use duckduckgeo::grid::*;
+use duckduckgeo::grid::raycast::*;
+
 
 #[test]
 fn test_short(){
@@ -11,69 +14,6 @@ fn test_short(){
     let s=ShortPath::new(test_path.iter().map(|a|*a));
     let v:Vec<_>=s.iter().collect();
     assert_eq!(&v as &[_],&test_path);
-}
-
-#[derive(Copy,Clone,Debug,Eq,PartialEq)]
-pub enum CardDir{
-    U,
-    D,
-    L,
-    R
-}
-impl CardDir{
-    pub fn into_char(self)->char{
-        use CardDir::*;
-        match self{
-            U=>{
-                '↑'
-            },
-            D=>{
-                '↓'
-            },
-            L=>{
-                '←'
-            },
-            R=>{
-                '→'
-            }
-        }
-    }
-    pub fn into_vec(self)->Vec2<GridNum>{
-        use CardDir::*;
-        match self{
-            U=>{
-                vec2(0,-1)
-            },
-            D=>{
-                vec2(0,1)
-            },
-            L=>{
-                vec2(-1,0)
-            },
-            R=>{
-                vec2(1,0)
-            }
-        }
-    }
-    fn into_two_bits(self)->u8{
-        use CardDir::*;
-        match self{
-            U=>{
-                0b00
-            },
-            D=>{
-                0b01
-            },
-            L=>{
-                0b10
-            },
-            R=>{
-                0b11
-            }
-
-        }
-    }
-    
 }
 
 const SENTINAL_VAL:u64=0b11;
@@ -125,6 +65,46 @@ impl ShortPath{
     pub fn iter(&self)->ShortPathIter{
         ShortPathIter{path:*self}
     }
+
+    /*
+    pub fn draw_map_and_path(&self,path:PathPointIter){
+        use std::collections::HashMap;
+
+        let mut res=String::new();
+        
+        
+        
+        let mut vv:Vec<_>=path.collect();
+        vv.push(path.pos());
+
+        println!("");
+        for i in 0..self.dim().y{
+            for j in 0..self.dim().x{
+                
+                let cc=if vv.iter().any(|a|*a==vec2(j,i)){
+                    if self.get(vec2(j,i)){
+                        "x "
+                        //panic!("path goes through wall");
+                    }else{
+                        "* "
+                    }
+                }else{
+
+                    if self.get(vec2(j,i)){
+                        "1 "
+                    }else{
+                        "0 "
+                    }
+                };
+                print!("{}",cc);
+                //res.push_str(cc);
+            }
+            println!("{}",res);
+            //fa=fa.and( writeln!(f,"{}",res));
+            //res.clear();
+        }
+    }
+    */
 }
 
 /*

@@ -10,7 +10,6 @@ use dinotree::axgeom;
 extern crate more_asserts;
 
 
-pub mod grid;
 pub mod pathfind;
 pub mod short_path;
 pub mod game;

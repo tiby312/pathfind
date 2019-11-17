@@ -3,12 +3,13 @@
 
 
 use crate::pathfind::*;
-use crate::grid::*;
 use crate::short_path::*;
 
 use crate::axgeom::*;
 use duckduckgeo::bot::*;
-
+use duckduckgeo::grid::*;
+use duckduckgeo::grid::raycast::*;
+//use duckduckgeo::grid::CardDir;
 
 #[derive(Eq,PartialEq,Debug,Copy,Clone)]
 enum GridBotState{
@@ -104,10 +105,17 @@ impl Game{
 				//dbg!(b.bot.pos);
 				let start =self.grid.to_grid(b.bot.pos);
 
-				let start=if self.walls.get(start){
-					find_closest_empty(&self.walls,start).unwrap()
-				}else{
-					start
+				let start =match self.walls.get_option(start){
+					None=>{
+						find_closest_empty(&self.walls,start).unwrap()
+					},
+					Some(walls)=>{
+						if walls{
+							find_closest_empty(&self.walls,start).unwrap()
+						}else{
+							start
+						}
+					}
 				};
 
 				let end = pick_empty_spot(&self.walls).unwrap();
@@ -197,31 +205,35 @@ impl Game{
 				}
 			}
 
-			use crate::grid::raycast::RayCaster;
-			use crate::grid::raycast::CollideCellEvent;
+			//use crate::grid::raycast::RayCaster;
+			//use crate::grid::raycast::CollideCellEvent;
 
-			/*
+			
 			
 			let bot=&mut b.bot;
 			let ray=duckduckgeo::Ray{point:bot.pos,dir:bot.vel};
 			
 
 			if let Some(caster)=RayCaster::new(&self.grid,ray){
-				for a in caster.take(4){
-					match self.walls.get_option(a.cell){
-						Some(wall)=>{
-							if wall{
-								bounce_with_wall(&self.grid,&self.bot_prop,bot,&a);
+				for a in caster{
+						match self.walls.get_option(a.cell){
+							Some(wall)=>{
+								if a.tval<ray.dir.magnitude(){
+					
+									if wall{
+										//bounce_with_wall(&self.grid,&self.bot_prop,bot,&a);
+										break;
+									}
+								}
+							},
+							None=>{
 								break;
 							}
-						},
-						None=>{
-							break;
-						}
+						
 					}
 				}
 			}
-			*/
+			
 			fn bounce_with_wall(grid_dim:&GridViewPort,bot_prop:&BotProp,bot:&mut Bot,collide:&CollideCellEvent){
 				use CardDir::*;
 
