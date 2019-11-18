@@ -55,15 +55,34 @@ const GRID_STR:&str= "\
 █   
 ████████
 ";
-
+const GRID_STR2:&str= "\
+████████████████████████████████
+█    █   █     █               █
+█    █   █  █  █      █        █ 
+█        █  █        █     █   █
+█    █████  █         █    █   █
+█      █             ██    █   █
+█      ████████████████    █   █
+█            █                 █
+████████     █                 █
+█          █████████   █████   █
+█                              █
+███████████████  ████████████  █
+█            █                 █
+█           █    ██            █
+█          █    █              █
+█         █    █               █
+█             █                █
+████████████████████████████████
+";
 impl Game{
 	pub fn new()->Game{
 		let pathfinder=PathFinder::new();
 		let dim=Rect::new(0.0,1920.,0.0,1080.);
-		let grid_dim=vec2(16,9);
+		let grid_dim=vec2(16,9)*2;
 		let mut grid=GridViewPort{origin:vec2(0.0,0.0),spacing:vec2(1920./grid_dim.x as f32,1080./grid_dim.y as f32)};
 
-		let walls=Grid2D::from_str(grid_dim,GRID_STR);
+		let walls=Grid2D::from_str(grid_dim,GRID_STR2);
 
 		let bot_prop=BotProp{
             radius:Dist::new(12.0),
@@ -73,7 +92,7 @@ impl Game{
             viscousity_coeff:0.03
         };
 
-        let num_bot=1000;
+        let num_bot=3000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let mut bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
@@ -214,68 +233,62 @@ impl Game{
 
 			//Get square to display the 4 ray casts.
 			//Confirm you get different values of tval for each.
-			//
+			
 
 
-
-
-			let mut skip_update=false;
 			let bot=&mut b.bot;
-			match self.walls.get_option(self.grid.to_grid(bot.pos)){
-				Some(walls)=>{
-					if !walls{
-						if bot.vel.magnitude2()>0.0{
-							
-							
-							let rect= bot.create_bbox(&self.bot_prop);
-							let corners=[
-								vec2(rect.x.left,rect.y.left),
-								vec2(rect.x.left,rect.y.right),
-								vec2(rect.x.right,rect.y.left),
-								vec2(rect.x.right,rect.y.right)
-							];
+			//Do twice incase we bounce off of one wall into another.
+			for _ in 0..2{
+				if bot.vel.magnitude2()>0.0{ //don't need to check anything if we are not moving.
+								
+					match self.walls.get_option(self.grid.to_grid(bot.pos)){
+						Some(walls)=>{
+							if !walls{ //don't do anything if we are inside a wall.
+								
+								//Ray cast from each of the 4 corners,
+								//incase we miss intersections.
 
-							let mut results=Vec::new();
-							for &corner in corners.iter(){
-							
-								let a=cast_ray(&self.grid,&self.walls,corner,bot.vel.normalize_to(1.0),bot.vel.magnitude());	
-								if let Some(a)=a{
-									//bounce_with_wall(&self.grid,&self.bot_prop,bot,&a);
-									results.push((corner,a));
+								let rect= *bot.create_bbox(&self.bot_prop).grow(0.1);
+								let corners=[
+									vec2(rect.x.left,rect.y.left),
+									vec2(rect.x.left,rect.y.right),
+									vec2(rect.x.right,rect.y.left),
+									vec2(rect.x.right,rect.y.right)
+								];
+
+								let mut results=Vec::new();
+								for &corner in corners.iter(){
+									let a=cast_ray(&self.grid,&self.walls,corner,bot.vel.normalize_to(1.0),bot.vel.magnitude());	
+									if let Some(a)=a{
+										results.push((corner,a));
+									}
 								}
-							}
 
-							/*
-							if !results.is_empty(){
-								dbg!(&results);
-							}
-							*/
+								match results.iter().min_by(|a,b|a.1.tval.partial_cmp(&b.1.tval).unwrap()){
+									Some(&(corner,a))=>{
+										let corner_diff=corner-bot.pos;
+										bounce_with_wall(&self.grid,&self.bot_prop,bot,corner_diff,&a);
+									},
+									None=>{
 
-							match results.iter().min_by(|a,b|a.1.tval.partial_cmp(&b.1.tval).unwrap()){
-								Some(&(corner,a))=>{
-									let corner_diff=corner-bot.pos;
-									skip_update=true;
-									bounce_with_wall(&self.grid,&self.bot_prop,bot,corner_diff,&a);
-								},
-								None=>{
-
+									}
 								}
+								
+							}else{
+
+								bot.pos=self.grid.to_world_center(find_closest_empty(&self.walls,self.grid.to_grid(bot.pos)).unwrap());
+								bot.acc=vec2(0.0,0.0);
+								bot.vel=vec2(0.0,0.0);
+								break;
 							}
-							
-							
-							
-							
+						},
+						None=>{
+							//The bot is outside of the wall grid, dont do anything.
 						}
 					}
-				},
-				None=>{
-
 				}
 			}
 			
-			//b.bot.pos+=b.bot.vel;
-			//b.bot.vel+=b.bot.acc;
-			//b.bot.acc=vec2same(0.);
 			if b.bot.vel.magnitude()>1.0{
 				b.bot.vel=b.bot.vel.normalize_to(1.0);
 			}
@@ -330,7 +343,7 @@ fn bounce_with_wall(grid_dim:&GridViewPort,bot_prop:&BotProp,bot:&mut Bot,corner
 	let current_cell=collide.cell;
 	let bottom_right=collide.cell+vec2(1,1);
 
-	let e=bot_prop.radius.dis()+0.001;
+	//let e=0.1;
 	let current_cell_pos=grid_dim.to_world_topleft(current_cell);
 	let bottom_right_pos=grid_dim.to_world_topleft(bottom_right);
 
