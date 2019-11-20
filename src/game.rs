@@ -59,21 +59,21 @@ const GRID_STR:&str= "\
 const GRID_STR2:&str= "\
 ████████████████████████████████
 █    █   █     █               █
-█    █   █  █  █      █        █ 
-█        █  █        █     █   █
-█    █████  █         █    █   █
-█      █             ██    █   █
-█      ████████████████    █   █
-█            █                 █
-████████     █                 █
-█          █████████   █████   █
+█    █   █  █  █ █    █        █ 
+█        █  █    █   █     █   █
+█    █████  █  █ █    █    █   █
+█      █       █ █   ██    █   █
+█      ███████ █ ██████    █   █
+█            █ █ █             █
+████████     █ █ █ █           █
+█          █████ ███   █████   █
 █                              █
-███████████████  ████████████  █
-█            █                 █
-█           █    ██            █
-█          █    █              █
-█         █    █               █
-█             █                █
+███████████████   ███████████  █
+█            █    █   █    █   █
+█       █   █    ██ █ █ █  █   █
+█       █  █   ██   █ █ █  █   █
+█       █ █         █   █      █
+█       █     ██████████████████
 ████████████████████████████████
 ";
 impl Game{
@@ -88,12 +88,12 @@ impl Game{
 		let bot_prop=BotProp{
             radius:Dist::new(12.0),
             collision_drag:0.003,
-            collision_push:0.1,
+            collision_push:0.02,
             minimum_dis_sqr:0.0001,
             viscousity_coeff:0.03
         };
 
-        let num_bot=10000;
+        let num_bot=5000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let mut bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
