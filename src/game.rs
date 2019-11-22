@@ -87,18 +87,18 @@ impl Game{
 
 		let bot_prop=BotProp{
             radius:Dist::new(12.0),
-            collision_drag:0.003,
+            collision_drag:0.001,
             collision_push:0.02,
             minimum_dis_sqr:0.0001,
             viscousity_coeff:0.03
         };
 
-        let num_bot=5000;
+        let num_bot=20000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let mut bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
-    		//bot.vel.y=1.0;
-    		//bot.vel.x=1.0;
+    		//bot.pos=vec2(86.70752,647.98);
+    		//bot.vel=vec2(-0.03991765,0.22951305);
     		GridBot{bot,state:GridBotState::DoingNothing}
     	}).collect();
 
@@ -109,6 +109,7 @@ impl Game{
 
     		if !assert_bot_is_not_touching_wall(bot,prop,&grid,&walls){
 				bot.pos=grid.to_world_center(find_closest_empty(&walls,grid.to_grid(bot.pos)).unwrap());
+				assert!(assert_bot_is_not_touching_wall(bot,prop,&grid,&walls));
 			}	
     	}
     	
@@ -213,7 +214,14 @@ impl Game{
         dinotree_alg::colfind::QueryBuilder::new(&mut tree).query_par(|mut a,mut b|{
             bot_prop.collide(&mut a.inner_mut().bot,&mut b.inner_mut().bot);
         });
-		
+
+        /*
+		for &mut GridBot{bot,state:_} in self.bots.iter_mut(){
+			if bot.acc.magnitude()>2.0{
+				bot.acc.normalize_to(2.0);
+			}
+		}
+		*/
        
 
 
@@ -223,7 +231,7 @@ impl Game{
 			let bot=&mut b.bot;
 
 			
-			let target_radius=self.grid.cell_radius().x;
+			let target_radius=self.grid.cell_radius().x*0.5;
 			//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
 
 			match state{
@@ -281,182 +289,92 @@ impl Game{
 			//then we should skip the step where we apply velocity to the position.
 			//since we have been doing that.
 			let mut amount_left_to_move=bot.vel.magnitude();
+			let last_speed=amount_left_to_move;
 
 
 			//let mut amount_left_to_move_backup=bot.vel.magnitude();
-			let vel_backup=bot.vel;
-			//let mut results_backup=Vec::new();
+			let backup_bot=*bot;
 
-			//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
 
 			let mut final_dir=None;
-			//Do twice incase we bounce off of one wall into another.
-			for _ in 0..2{ //TODO how to fix this break out of loop if amount_left_to_move is almost zero.
-				if !assert_bot_is_not_touching_wall_center(&bot,&self.bot_prop,&self.grid,&self.walls){
-					bot.pos=self.grid.to_world_center(find_closest_empty(&self.walls,self.grid.to_grid(bot.pos)).unwrap());
-				}
-				else
-				{
-					if bot.vel.magnitude2()>0.0{ //don't need to check anything if we are not moving.
-						
-						match RayStorm::new(bot,&self.bot_prop).find_nearest_collision(&self.grid,&self.walls,amount_left_to_move)
-						{
-							Some((corner,a))=>{
-								let corner_diff=corner-bot.pos;
-								
-								let tval=bounce_with_wall(&self.grid,&self.bot_prop,bot,corner_diff,&a);
-								
-								assert!(tval.is_finite());
-								assert_le!(tval,amount_left_to_move);
-				
-								amount_left_to_move-=tval;
-								//amount_left_to_move=amount_left_to_move.max(0.0);
-								
-								final_dir=Some(a.dir_hit);
-							},
-							None=>{
 
+			loop{ 
+				assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
+
+				
+				if bot.vel.magnitude2()==0.0{ //don't need to check anything if we are not moving.
+					break;
+				}else{
+
+					match RayStorm::new(bot,&self.bot_prop).find_nearest_collision(&self.grid,&self.walls,amount_left_to_move)
+					{
+						Some(BBoxCollideCellEvent{corner,inner})=>{
+							let corner_diff=corner-bot.pos;
+							let tval=bounce_with_wall(&self.grid,&self.bot_prop,amount_left_to_move,bot,corner_diff,&inner);
+							
+							assert!(tval.is_finite());
+							
+							//Add a little bit of a buffer.
+							//After a bunch of calculations a small episol error can be introduced.
+							//Err on the side of caution and don't move too far forward.
+							amount_left_to_move-=tval;
+							amount_left_to_move*=0.2; //TODO this is not exact???
+							
+							final_dir=Some(inner.dir_hit);
+						},
+						None=>{
+
+							assert_ge!(amount_left_to_move,0.0);
+							assert!(amount_left_to_move.is_finite());
+
+							let nv=bot.vel.normalize_to(1.0)*amount_left_to_move;
+							
+							if let Some(dir)=final_dir{
+								use CardDir::*;
+								match dir{
+									U=>{
+										assert!(nv.y<=0.0);
+									},
+									D=>{
+										assert!(nv.y>=0.0);
+									},
+									L=>{
+										assert!(nv.x<=0.0);
+									},
+									R=>{
+										assert!(nv.x>=0.0);
+									}
+
+								}
 							}
-						}
-					}
-				}
-			}
-			//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
-
-
-			
-			let bot_save=*bot;
-			if bot.vel.magnitude2()>0.0{		
-				assert_ge!(amount_left_to_move,0.0);
-				assert!(amount_left_to_move.is_finite());
-
-				let nv=bot.vel.normalize_to(1.0)*amount_left_to_move;
-				
-				if let Some(dir)=final_dir{
-					use CardDir::*;
-					match dir{
-						U=>{
-							assert!(nv.y<=0.0);
-						},
-						D=>{
-							assert!(nv.y>=0.0);
-						},
-						L=>{
-							assert!(nv.x<=0.0);
-						},
-						R=>{
-							assert!(nv.x>=0.0);
-						}
-
-					}
-				}
-				
-				//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
-
-				bot.pos+=nv;
-				
-				//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
-
-
-				
-				if !assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls)
-				{
-					dbg!("GRIDDDDD",self.grid.to_grid(bot.pos));
-					let mut prop=self.bot_prop;
-					prop.radius=Dist::new(prop.radius.dis());
-					let ray=RayStorm::new(&bot_save,&self.bot_prop);
-					let a=ray.find_nearest_collision(&self.grid,&self.walls,100.0);
 							
-					//let a=cast_ray(&self.grid,&self.walls,bot.pos,bot.vel.normalize_to(1.0),100.0);	
-					dbg!((self.grid.to_grid_mod(grid_bot_save.bot.pos),self.grid.to_grid_mod(bot.pos),nv,vel_backup,&bot,amount_left_to_move,a));
-
-					//panic!("fail");
-					let mut p=vec2(0.0,0.0);
-					for a in 0..50{
-						
-						let mut k=grid_bot_save;
-						k.bot.pos+=nv*(a as f32);
-						self.bots_debug.push(k);
-						
-					}
-					//bot.pos=bot_save.pos;
-				}
-
-			}else{
-				
-			}
-
-
+							let bot_save=*bot;
+							bot.pos+=nv;
 
 							
-								
-			//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
-
-			assert!(b.bot.pos.x.is_finite() |b.bot.pos.y.is_finite() );
-
-			
-			
-
-			
-
+							break;
+						}
+					}
+				}	
+			}
 		}
 	}
 }
 
 
-fn assert_bot_is_not_touching_wall_center(bot:&Bot,bot_prop:&BotProp,grid:&GridViewPort,walls:&Grid2D)->bool{
-	let mut rect= bot.create_bbox(bot_prop);
-	let corners=[
-		vec2(bot.pos.x,bot.pos.y),
-	];
-
-
-
-	for &a in corners.iter(){
-		let mut a=a;
-		let k = grid.to_grid_mod(a);
-
-		
-		let mut l=grid.to_grid(a);
-		
-		/*
-		if k.x==0.0{
-			
-			//println!("XXXX");
-			l.x-=1;
-		}
-		if k.y==0.0{
-			//println!("YYYY");
-			l.y-=1;
-		}
-		*/
-		
-		//dbg!("GRIDDDDD",k);
-		match walls.get_option(l){
-			Some(walls)=>{
-				if walls{
-					return false;
-				}
-			},
-			None=>{
-
-			}
-		}
-	}
-	return true;
-}
 fn assert_bot_is_not_touching_wall(bot:&Bot,bot_prop:&BotProp,grid:&GridViewPort,walls:&Grid2D)->bool{
 	let mut rect= bot.create_bbox(bot_prop);
 	let corners=[
-		//vec2(bot.pos.x,bot.pos.y),
+		vec2(bot.pos.x,bot.pos.y),
 		vec2(rect.x.left,rect.y.left),
 		vec2(rect.x.left,rect.y.right),
 		vec2(rect.x.right,rect.y.left),
 		vec2(rect.x.right,rect.y.right)
-		
 	];
 
-	for &a in corners.iter(){
+	for (i,&a) in corners.iter().enumerate(){
+		let k = grid.to_grid_mod(a);
+
 		match walls.get_option(grid.to_grid(a)){
 			Some(walls)=>{
 				if walls{
@@ -472,15 +390,42 @@ fn assert_bot_is_not_touching_wall(bot:&Bot,bot_prop:&BotProp,grid:&GridViewPort
 }
 
 
+
+#[derive(Copy,Clone,Debug)]
+struct BotDebug<'a>{
+	bot:&'a Bot,
+	prop:&'a BotProp,
+	mod_pos:Vec2<WorldNum>,
+	speed:WorldNum
+}
+impl<'a> BotDebug<'a>{
+	pub fn new(bot:&'a Bot,prop:&'a BotProp,grid:&GridViewPort,walls:&Grid2D)->BotDebug<'a>{
+		let mod_pos=grid.to_grid_mod(bot.pos);
+		let speed=bot.vel.magnitude();
+		BotDebug{bot,prop,mod_pos,speed}
+	}
+}
+
+
+
+
 #[derive(Copy,Clone,Debug)]
 struct RayStorm<'a>{
-	inner:[Vec2<WorldNum>;4],
+	inner:[Vec2<WorldNum>;5],
 	bot:&'a Bot
 }
+
+#[derive(Debug)]
+struct BBoxCollideCellEvent{
+	inner:CollideCellEvent,
+	corner:Vec2<WorldNum>
+}
+
 impl<'a> RayStorm<'a>{
 	fn new(bot:&'a Bot,prop:&BotProp)->RayStorm<'a>{
-		let rect= *bot.create_bbox(prop).grow(0.1);
+		let rect= *bot.create_bbox(prop).grow(0.001); //TODO figure this out.
 		let inner=[
+			bot.pos,
 			vec2(rect.x.left,rect.y.left),
 			vec2(rect.x.left,rect.y.right),
 			vec2(rect.x.right,rect.y.left),
@@ -489,7 +434,7 @@ impl<'a> RayStorm<'a>{
 		RayStorm{inner,bot}
 	}
 
-	fn find_nearest_collision(&self,grid:&GridViewPort,walls:&Grid2D,amount_left_to_move:WorldNum)->Option<(Vec2<WorldNum>,CollideCellEvent)>{
+	fn find_nearest_collision(&self,grid:&GridViewPort,walls:&Grid2D,amount_left_to_move:WorldNum)->Option<BBoxCollideCellEvent>{
 		let mut results=Vec::new();
 		for &corner in self.inner.iter(){
 			let a=cast_ray(grid,walls,corner,self.bot.vel.normalize_to(1.0),amount_left_to_move);	
@@ -503,9 +448,11 @@ impl<'a> RayStorm<'a>{
 
 		match results.iter().min_by(|a,b|a.1.tval.partial_cmp(&b.1.tval).unwrap()){
 			Some(&(corner,a))=>{
-				//let corner_diff=corner-bot.pos;
-				
-				Some((corner,a))
+				if corner==self.inner[0]{
+					panic!("problem! center was closer than all corners {:?}",(self,grid,amount_left_to_move));
+				}
+				Some(BBoxCollideCellEvent{corner,inner:a})
+				//Some((corner,a))
 			},
 			None=>{
 				None
@@ -514,45 +461,6 @@ impl<'a> RayStorm<'a>{
 	}
 }
 
-
-#[derive(Copy,Clone,Debug)]
-struct RayStorm2<'a>{
-	inner:[Vec2<WorldNum>;1],
-	bot:&'a Bot
-}
-impl<'a> RayStorm2<'a>{
-	fn new(bot:&'a Bot,prop:&BotProp)->RayStorm2<'a>{
-		let rect= *bot.create_bbox(prop).grow(0.1);
-		let inner=[
-			vec2(bot.pos.x,bot.pos.y),
-		];
-		RayStorm2{inner,bot}
-	}
-
-	fn find_nearest_collision(&self,grid:&GridViewPort,walls:&Grid2D,amount_left_to_move:WorldNum)->Option<(Vec2<WorldNum>,CollideCellEvent)>{
-		let mut results=Vec::new();
-		for &corner in self.inner.iter(){
-			let a=cast_ray(grid,walls,corner,self.bot.vel.normalize_to(1.0),amount_left_to_move);	
-			if let Some(a)=a{
-				//assert!(a.tval.is_finite());
-				assert_le!(a.tval,amount_left_to_move);
-				//dbg!(a.tval);
-				results.push((corner,a));
-			}
-		}
-
-		match results.iter().min_by(|a,b|a.1.tval.partial_cmp(&b.1.tval).unwrap()){
-			Some(&(corner,a))=>{
-				//let corner_diff=corner-bot.pos;
-				
-				Some((corner,a))
-			},
-			None=>{
-				None
-			}
-		}
-	}
-}
 
 
 
@@ -560,94 +468,63 @@ fn cast_ray(grid:&GridViewPort,walls:&Grid2D,point:Vec2<WorldNum>,dir:Vec2<World
 
 	let ray=duckduckgeo::Ray{point,dir};
 	
-	match RayCaster::new(grid,ray){
-		Some(caster)=>{
-			for mut a in caster{
-				if a.tval<=max_tval{				
-					match walls.get_option(a.cell){
-						Some(wall)=>{
-							if wall{
-								/*
-								{//check that we are not repeling into another wall. (corner case)
-									use CardDir::*;
-									let k=match a.dir_hit{
-										L=>{
-											vec2(-1,0)
-										},
-										R=>{
-											vec2(1,0)
-										},
-										U=>{
-											vec2(0,-1)
-										},
-										D=>{
-											vec2(0,1)
-										}
-									};
-
-									//TODO use this
-									//k.cross_product(ray.dir)
-
-									if let Some(wall) = walls.get_option(a.cell+k){
-										if wall{
-											dbg!("YOOOO");
-											use CardDir::*;
-											let k=match a.dir_hit{
-												L=>{
-													if dir.y>0.0{
-														U
-													}else{
-														D
-													}
-												},
-												R=>{
-													if dir.y>0.0{
-														U
-													}else{
-														D
-													}	
-												},
-												U=>{
-													if dir.x>0.0{
-														L
-													}else{
-														R
-													}
-												},
-												D=>{
-													if dir.x>0.0{
-														L
-													}else{
-														R
-													}
-												}
-											};
-											a.dir_hit=k;
-											return Some(a)
-										}
-									}
+	let caster= RayCaster::new(grid,ray);
+		
+	for mut a in caster{
+		if a.tval<=max_tval{				
+			match walls.get_option(a.cell){
+				Some(wall)=>{
+					if wall{								
+						{//check that we are not repeling into another wall. (corner case)
+							use CardDir::*;
+							let k=match a.dir_hit{
+								L=>{
+									vec2(-1,0)
+								},
+								R=>{
+									vec2(1,0)
+								},
+								U=>{
+									vec2(0,-1)
+								},
+								D=>{
+									vec2(0,1)
 								}
-								*/
-								return Some(a);
-							}		
-						},
-						None=>{
-							return None; //We've ray casted off the wall grid.
-						}		
-					}
-				}else{
-					return None;
-				}
+							};
+
+							if let Some(wall) = walls.get_option(a.cell+k){
+								if wall{
+									panic!("I dont know how to deal with this situation.")
+								}
+							}
+						}
+						
+						return Some(a);
+					}		
+				},
+				None=>{
+					return None; //We've ray casted off the wall grid.
+				}		
 			}
-		},
-		None=>{
-			panic!("failed to make ray caster {:?}",ray);
+		}else{
+			return None;
 		}
 	}
 	unreachable!()
 }
 
-fn bounce_with_wall(grid_dim:&GridViewPort,bot_prop:&BotProp,bot:&mut Bot,corner_diff:Vec2<WorldNum>,collide:&CollideCellEvent)->WorldNum{
+
+/*
+fn bounce_with_wall_f(collide:&CollideCellEvent)->WorldNum{
+
+}
+*/
+
+
+
+
+
+fn bounce_with_wall(grid_dim:&GridViewPort,bot_prop:&BotProp,max_tval:WorldNum,bot:&mut Bot,corner_diff:Vec2<WorldNum>,collide:&CollideCellEvent)->WorldNum{
 
 
 	use CardDir::*;
@@ -655,7 +532,6 @@ fn bounce_with_wall(grid_dim:&GridViewPort,bot_prop:&BotProp,bot:&mut Bot,corner
 	let current_cell=collide.cell;
 	let bottom_right=collide.cell+vec2(1,1);
 
-	//let e=0.1;
 
 	let shift=0.001;
 	//TODO important to add a diff here!!!!
@@ -670,35 +546,113 @@ fn bounce_with_wall(grid_dim:&GridViewPort,bot_prop:&BotProp,bot:&mut Bot,corner
 		L=>{
 				let position_at_contact_x=current_cell_pos.x-corner_diff.x;
 				tval=(position_at_contact_x-bot.pos.x)/va.x;
-
-				bot.pos.x=position_at_contact_x;
+				//dbg!(tval,collide.tval);
+				tval=tval.min(max_tval).max(0.0);
+				
+				bot.pos+=va*tval;
 				bot.vel.x=-bot.vel.x;
-				//bot.vel.x*=slow;
+				bot.vel.x*=slow;
 		},
 		R=>{
 				let position_at_contact_x=bottom_right_pos.x-corner_diff.x;
 				tval=(position_at_contact_x-bot.pos.x)/va.x;
-
-				bot.pos.x=position_at_contact_x;
+				tval=tval.min(max_tval).max(0.0);
+				bot.pos+=va*tval;
+				
 				bot.vel.x=-bot.vel.x;
-				//bot.vel.x*=slow;
+				bot.vel.x*=slow;
 		},
 		U=>{
 				let position_at_contact_y=current_cell_pos.y-corner_diff.y;
 				tval=(position_at_contact_y-bot.pos.y)/va.y;
-
-				bot.pos.y=position_at_contact_y;
+				tval=tval.min(max_tval).max(0.0);
+				bot.pos+=va*tval;
+				
 				bot.vel.y=-bot.vel.y;
-				//bot.vel.y*=slow;
+				bot.vel.y*=slow;
 		},
 		D=>{
 				let position_at_contact_y=bottom_right_pos.y-corner_diff.y;
 				tval=(position_at_contact_y-bot.pos.y)/va.y;
-
-				bot.pos.y=position_at_contact_y;
+				tval=tval.min(max_tval).max(0.0);
+				bot.pos+=va*tval;
+				
 				bot.vel.y=-bot.vel.y;
-				//bot.vel.y*=slow;
+				bot.vel.y*=slow;
 		}
 	}
 	tval
 }
+
+/*
+fn bounce_with_wall(grid_dim:&GridViewPort,bot_prop:&BotProp,max_tval:WorldNum,bot:&mut Bot,corner_diff:Vec2<WorldNum>,collide:&CollideCellEvent)->WorldNum{
+
+
+	use CardDir::*;
+
+	let current_cell=collide.cell;
+	let bottom_right=collide.cell+vec2(1,1);
+
+
+	let shift=0.001;
+	//TODO important to add a diff here!!!!
+	let current_cell_pos=grid_dim.to_world_topleft(current_cell)-vec2same(shift);
+	let bottom_right_pos=grid_dim.to_world_topleft(bottom_right)+vec2same(shift);
+
+	let slow=0.2;
+	
+	let va=bot.vel.normalize_to(1.0);
+	let mut tval;
+	match collide.dir_hit{
+		L=>{
+				let position_at_contact_x=current_cell_pos.x-corner_diff.x;
+				tval=(position_at_contact_x-bot.pos.x)/va.x;
+				//dbg!(tval);
+				tval=tval.min(max_tval).max(0.0);
+				//dbg!(tval);
+				//bot.pos.x=position_at_contact_x;
+				bot.pos+=va*tval;
+				bot.vel.x=-bot.vel.x;
+				bot.vel.x*=slow;
+		},
+		R=>{
+				let position_at_contact_x=bottom_right_pos.x-corner_diff.x;
+				tval=(position_at_contact_x-bot.pos.x)/va.x;
+				//dbg!(tval);
+				tval=tval.min(max_tval).max(0.0);
+				//dbg!(tval);
+				//bot.pos.x=position_at_contact_x;
+				bot.pos+=va*tval;
+				
+				bot.vel.x=-bot.vel.x;
+				bot.vel.x*=slow;
+		},
+		U=>{
+				let position_at_contact_y=current_cell_pos.y-corner_diff.y;
+				tval=(position_at_contact_y-bot.pos.y)/va.y;
+				//dbg!(tval);
+				//dbg!(tval);
+				tval=tval.min(max_tval).max(0.0);
+				//dbg!(tval);
+				//bot.pos.y=position_at_contact_y;
+				bot.pos+=va*tval;
+				
+				bot.vel.y=-bot.vel.y;
+				bot.vel.y*=slow;
+		},
+		D=>{
+				let position_at_contact_y=bottom_right_pos.y-corner_diff.y;
+				tval=(position_at_contact_y-bot.pos.y)/va.y;
+				//dbg!(tval);
+				tval=tval.min(max_tval).max(0.0);
+				//dbg!(tval);
+				//bot.pos.y=position_at_contact_y;
+				bot.pos+=va*tval;
+				
+				bot.vel.y=-bot.vel.y;
+				bot.vel.y*=slow;
+		}
+	}
+	tval
+}
+*/

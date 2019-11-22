@@ -196,9 +196,15 @@ impl PathFinder{
         let problem_vec:Vec<_>=self.requests.drain(0..num_to_process.min(self.requests.len())).collect();
         use rayon::prelude::*;
 
+        /*
         let mut newv:Vec<_> = problem_vec.into_par_iter().map(|a|{
             (a.time_put_in,PathFindResult{info:a.info,path:perform_astar(grid,a.info)})
         }).collect();
+        */
+        let mut newv:Vec<_> = problem_vec.iter().map(|a|{
+            (a.time_put_in,PathFindResult{info:a.info,path:perform_astar(grid,a.info)})
+        }).collect();
+        
 
         for a in newv.drain(..){
             self.finished.push_back(a);
