@@ -93,7 +93,7 @@ impl Game{
             viscousity_coeff:0.03
         };
 
-        let num_bot=20000;
+        let num_bot=10000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let mut bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
@@ -231,7 +231,7 @@ impl Game{
 			let bot=&mut b.bot;
 
 			
-			let target_radius=self.grid.cell_radius().x*0.5;
+			let target_radius=self.grid.cell_radius().x*0.2;
 			//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
 
 			match state{
@@ -318,7 +318,7 @@ impl Game{
 							//After a bunch of calculations a small episol error can be introduced.
 							//Err on the side of caution and don't move too far forward.
 							amount_left_to_move-=tval;
-							amount_left_to_move*=0.2; //TODO this is not exact???
+							//amount_left_to_move*=0.2; //TODO this is not exact???
 							
 							final_dir=Some(inner.dir_hit);
 						},
@@ -538,7 +538,7 @@ fn bounce_with_wall(grid_dim:&GridViewPort,bot_prop:&BotProp,max_tval:WorldNum,b
 	let current_cell_pos=grid_dim.to_world_topleft(current_cell)-vec2same(shift);
 	let bottom_right_pos=grid_dim.to_world_topleft(bottom_right)+vec2same(shift);
 
-	let slow=0.2;
+	let slow=1.0;
 	
 	let va=bot.vel.normalize_to(1.0);
 	let mut tval;
