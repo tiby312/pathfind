@@ -2,7 +2,7 @@
 use crate::axgeom::*;
 
 use duckduckgeo::grid::*;
-use duckduckgeo::grid::raycast::*;
+
 
 
 #[test]
@@ -78,7 +78,7 @@ pub mod shortpath2{
             if cc == SENTINAL_VAL{
                 return None
             }else{
-                use CardDir::*;
+                
                 let k=self.path.value & 0b111;
                 //dbg!(k);
                 Some(CardDir2::from_u8(k as u8))
@@ -211,7 +211,7 @@ isnt a grid wall in a certain spot.
 */
 
 
-use core::iter::Peekable;
+
 
 
 #[derive(Eq,PartialEq,Copy,Clone,Debug)]
@@ -249,7 +249,7 @@ fn intersects_walls(grid:&Grid2D,start:Vec2<GridNum>,end:Vec2<GridNum>)->bool{
 //DOES NOT IMPLEMENT EXACT SIZE
 impl PathDiagAdapter{
 
-    pub fn next(&mut self,radius:WorldNum,grid:&GridViewPort,walls:&Grid2D)->Option<Vec2<GridNum>>{
+    pub fn next(&mut self,_radius:WorldNum,_grid:&GridViewPort,_walls:&Grid2D)->Option<Vec2<GridNum>>{
         self.inner.next()
         /*
         let current_grid=self.inner.pos();

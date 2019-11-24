@@ -1,11 +1,9 @@
 
 use crate::*;
 use crate::short_path::*;
-
 use duckduckgeo::grid::*;
-use duckduckgeo::grid::raycast::*;
 use crate::short_path::shortpath2::ShortPath2;
-//use crate::grid::*;
+
 
 
 #[derive(Copy,Clone,Debug)]
@@ -63,7 +61,7 @@ pub struct PathFindResult{
 
 fn test(){
     use std::collections::BTreeMap;
-    let map:BTreeMap<StartEnd,PathFindCacheResult> = BTreeMap::new();
+    let _map:BTreeMap<StartEnd,PathFindCacheResult> = BTreeMap::new();
 
 }
 
@@ -76,12 +74,12 @@ struct PathFindTimer{
 use std::collections::VecDeque;
 
 
-const DELAY:usize=60;
+const DELAY:usize=60*3;
 
 //TODO add caching
 
 mod test{
-    use super::*;
+    
     
     #[test]
     fn test(){
@@ -174,7 +172,7 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath2>{
             
             for curr in a.drain(..).skip(1).take(shortpath2::MAX_PATH_LENGTH){
             
-                use CardDir::*;
+                
 
                 let dir=CardDir2::from_offset(curr-cursor);
                 dirs.push(dir);
@@ -213,33 +211,19 @@ impl PathFinder{
             self.requests.push_back(PathFindTimer{info:a,time_put_in:self.timer})    
         }
 
-
-
-
-        
-
-
-        let infos_that_must_be_processed=self.requests.iter().enumerate().find(|a| (self.timer - a.1.time_put_in) < DELAY ).map(|a|a.0);
-
-        //dbg!(infos_that_must_be_processed,self.requests.len());
-        let num_to_process = match infos_that_must_be_processed{
-            Some(a)=>{
-                a.max(100) //TODO figure this out
-            },
-            None=>{
-                100
+        let mut infos_that_must_be_processed=0;
+        for (index,a) in self.requests.iter().enumerate().rev(){
+            if self.timer - a.time_put_in >DELAY{
+                infos_that_must_be_processed=index;
+                break;
             }
-        };
-
-
+        }
+       
+        let num_to_process=100.max(infos_that_must_be_processed);
+        
         let problem_vec:Vec<_>=self.requests.drain(0..num_to_process.min(self.requests.len())).collect();
         use rayon::prelude::*;
 
-        /*
-        let mut newv:Vec<_> = problem_vec.into_par_iter().map(|a|{
-            (a.time_put_in,PathFindResult{info:a.info,path:perform_astar(grid,a.info)})
-        }).collect();
-        */
         let mut newv:Vec<_> = problem_vec.iter().map(|a|{
             (a.time_put_in,PathFindResult{info:a.info,path:perform_astar(grid,a.info)})
         }).collect();
@@ -256,9 +240,11 @@ impl PathFinder{
         loop{
             match self.finished.front(){
                 Some(front)=>{
-                    if self.timer - front.0 != DELAY{
+                    
+                    if self.timer - front.0 != DELAY+1{
                         break;
                     }
+                    
                     newv.push(self.finished.pop_front().unwrap().1);
                 },
                 None=>{

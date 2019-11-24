@@ -194,7 +194,7 @@ fn handle_path_assignment(game:&mut Game){
 
 
 fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,walls:&Grid2D){
-	let grid_bot_save=*b;
+	let _grid_bot_save=*b;
 	let state=&mut b.state;
 	let bot=&mut b.bot;
 
@@ -212,7 +212,7 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 				if bot.move_to_point(grid.to_world_center(pointiter.inner.pos()),target_radius){
 					
 					match pointiter.next(14.0,&grid,&walls){
-						Some(target)=>{
+						Some(_target)=>{
 							*time=pathfinder.get_time();
 						},
 						None=>{
@@ -236,9 +236,9 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 	bot.acc=vec2same(0.0);
 }
 
-fn handle_bot_moving(b:&mut GridBot,prop:&BotProp,pathfinder:&PathFinder,grid:&GridViewPort,walls:&Grid2D){
+fn handle_bot_moving(b:&mut GridBot,prop:&BotProp,_pathfinder:&PathFinder,grid:&GridViewPort,walls:&Grid2D){
 
-	let state=&mut b.state;
+	let _state=&mut b.state;
 	let bot=&mut b.bot;
 
 	//you have a bot
@@ -257,18 +257,18 @@ fn handle_bot_moving(b:&mut GridBot,prop:&BotProp,pathfinder:&PathFinder,grid:&G
 		
 	if bot.vel.magnitude2()>0.0{	
 		let mut amount_left_to_move=bot.vel.magnitude();
-		let last_speed=amount_left_to_move;
+		let _last_speed=amount_left_to_move;
 
 		while amount_left_to_move>0.0{
 	
-			let bot_save=*bot;
+			let _bot_save=*bot;
 			let rect= *create_bbox_wall(bot,prop).grow(EXTRA); //TODO figure this out.
 			assert!(!rect_is_touching_wall(&rect,grid,walls));
 			
 			match RayStorm::new(rect).find_nearest_collision(grid,walls,bot.vel.normalize_to(1.0),amount_left_to_move+EXTRA*2.)
 			{
 				Some(BBoxCollideCellEvent{corner,inner})=>{
-					let corner_diff=corner-bot.pos;
+					let _corner_diff=corner-bot.pos;
 		
 					let va=bot.vel.normalize_to(1.0);
 
@@ -327,10 +327,10 @@ impl Game{
 	pub fn new()->Game{
 		let pathfinder=PathFinder::new();
 		let dim=Rect::new(0.0,1920.,0.0,1080.);
-		let grid_dim=vec2(16,9)*2;
-		let mut grid=GridViewPort{origin:vec2(0.0,0.0),spacing:vec2(1920./grid_dim.x as f32,1080./grid_dim.y as f32)};
+		let grid_dim=vec2(16,9)*4;
+		let grid=GridViewPort{origin:vec2(0.0,0.0),spacing:vec2(1920./grid_dim.x as f32,1080./grid_dim.y as f32)};
 
-		let walls=Grid2D::from_str(grid_dim,GRID_STR2);
+		let walls=Grid2D::from_str(grid_dim,GRID_STR3);
 
 		let bot_prop=BotProp{
             radius:Dist::new(12.0),
@@ -346,7 +346,7 @@ impl Game{
         let num_bot=10000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
-    		let mut bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
+    		let bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
     		//bot.pos=vec2(86.70752,647.98);
     		//bot.vel=vec2(-0.03991765,0.22951305);
     		GridBot{bot,state:GridBotState::DoingNothing}
@@ -410,8 +410,8 @@ fn rect_is_touching_wall(rect:&Rect<WorldNum>,grid:&GridViewPort,walls:&Grid2D)-
 		vec2(rect.x.right,rect.y.right)
 	];
 
-	for (i,&a) in corners.iter().enumerate(){
-		let k = grid.to_grid_mod(a);
+	for (_i,&a) in corners.iter().enumerate(){
+		let _k = grid.to_grid_mod(a);
 
 		match walls.get_option(grid.to_grid(a)){
 			Some(walls)=>{
@@ -437,7 +437,7 @@ struct BotDebug<'a>{
 	speed:WorldNum
 }
 impl<'a> BotDebug<'a>{
-	pub fn new(bot:&'a Bot,prop:&'a BotProp,grid:&GridViewPort,walls:&Grid2D)->BotDebug<'a>{
+	pub fn new(bot:&'a Bot,prop:&'a BotProp,grid:&GridViewPort,_walls:&Grid2D)->BotDebug<'a>{
 		let mod_pos=grid.to_grid_mod(bot.pos);
 		let speed=bot.vel.magnitude();
 		BotDebug{bot,prop,mod_pos,speed}
@@ -524,7 +524,7 @@ fn cast_ray(grid:&GridViewPort,walls:&Grid2D,point:Vec2<WorldNum>,dir:Vec2<World
 	}
 
 
-	for mut a in caster{
+	for a in caster{
 		if a.tval<=max_tval{				
 			match walls.get_option(a.cell){
 				Some(wall)=>{
