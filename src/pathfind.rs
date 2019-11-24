@@ -24,9 +24,8 @@ impl StartEnd{
     //and then combine them.
     fn compare_difference(&self,other:&StartEnd)->GridNum{
         let dis1=(other.start-self.start).magnitude2();
-        //let dis2=(other.end-self.end).magnitude2();
-        //dis1.max(dis2)
-        dis1
+        let dis2=(other.end-self.end).magnitude2();
+        dis1.max(dis2)
     }
     fn into_num(&self)->u64{
         (self.start.x as u64) << 48  | (self.start.y as u64) << 32 | (self.end.x as u64) << 16 | (self.end.y as u64)
@@ -76,8 +75,8 @@ use std::collections::VecDeque;
 
 const DELAY:usize=60*3;
 
-//TODO add caching
 
+//TODO add caching
 mod test{
     
     
@@ -91,7 +90,6 @@ mod test{
             }
         }
 
-
         let mut k=PathFinder::new();
 
         let start=vec2(0,0);
@@ -101,7 +99,6 @@ mod test{
             
         for _ in 0..59{
             let k =k.handle_par(&grid,vec!());
-            
             //dbg!(k);
         }
 
@@ -171,9 +168,6 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath2>{
             let mut dirs=Vec::new();
             
             for curr in a.drain(..).skip(1).take(shortpath2::MAX_PATH_LENGTH){
-            
-                
-
                 let dir=CardDir2::from_offset(curr-cursor);
                 dirs.push(dir);
                 cursor=curr;
