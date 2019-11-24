@@ -4,7 +4,7 @@ use crate::short_path::*;
 
 use duckduckgeo::grid::*;
 use duckduckgeo::grid::raycast::*;
-
+use crate::short_path::shortpath2::ShortPath2;
 //use crate::grid::*;
 
 
@@ -16,12 +16,48 @@ pub struct PathFindInfo{
 }
 
 
+#[derive(Eq,PartialEq,Copy,Clone,Debug)]
+pub struct StartEnd{
+    pub start:Vec2<GridNum>,
+    pub end:Vec2<GridNum>,
+}
+impl StartEnd{
+    fn into_num(&self)->u64{
+        (self.start.x as u64) << 48  | (self.start.y as u64) << 32 | (self.end.x as u64) << 16 | (self.end.y as u64)
+    }
+}
+
+impl Ord for StartEnd {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.into_num().cmp(&other.into_num())
+    }
+}
+
+impl PartialOrd for StartEnd {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+
+
+#[derive(Copy,Clone,Debug)]
+pub struct PathFindCacheResult{
+    pub path:Option<ShortPath2>
+}
+
+
 #[derive(Copy,Clone,Debug)]
 pub struct PathFindResult{
     pub info:PathFindInfo,
-    pub path:Option<ShortPath>
+    pub path:Option<ShortPath2>
 }
 
+fn test(){
+    use std::collections::BTreeMap;
+    let map:BTreeMap<StartEnd,PathFindCacheResult> = BTreeMap::new();
+
+}
 
 
 struct PathFindTimer{
@@ -34,7 +70,7 @@ use std::collections::VecDeque;
 
 const DELAY:usize=60;
 
-
+//TODO add caching
 
 mod test{
     use super::*;
@@ -72,42 +108,48 @@ mod test{
 }
 
 
-fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
+fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath2>{
     //TODO this function does a bunch of dynamic allocation. how to avoid?
     use pathfinding::prelude::*;
     fn successors(a:&Vec2<GridNum>,grid:&Grid2D) -> Vec<(Vec2<GridNum>, u32)> {
         
+        let a=*a;
+
+        let offsets=CardDir2::all_offsets();
 
 
-        let mut v=Vec::new();
-        if a.x<grid.dim().x-1{
-            let k=*a+vec2(1,0);
-            if !grid.get(k){
-                v.push(k)
+        offsets.iter().filter(|&(b,_)|{
+            let c=a+*b;
+            match grid.get_option(c){
+                Some(wall)=>{
+                    if wall{
+                        false
+                    }else{
+                        //if is diagonal
+                        if b.abs()==vec2(1,1){
+                            let vs=b.split_into_components();
+
+                            let mut ff=true;
+                            for &v in vs.iter(){
+                                if let Some(w) = grid.get_option(a+v){
+                                    if w{
+                                        ff=false;
+                                        break;
+                                    }
+                                }
+                            }
+                            ff
+                        }else{
+                            true
+                        }
+                    }
+                },
+                None=>{
+                    false
+                }
             }
-        }
-        if a.x>0{
-            let k=*a+vec2(-1,0);
-            if !grid.get(k){
-                v.push(k)   
-            }
-        }
+        }).map(|&(b,c)|(a+b,c as u32)).collect()
 
-        if a.y>0{
-            let k=*a+vec2(0,-1);
-            if !grid.get(k){
-                v.push(k)
-            }
-        }
-
-        if a.y<grid.dim().y-1{
-            let k=*a+vec2(0,1);
-            if !grid.get(k){
-                v.push(k)   
-            }
-        }
-
-        v.into_iter().map(|p| (p, 1)).collect()
     }
 
 
@@ -122,32 +164,16 @@ fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath>{
 
             let mut dirs=Vec::new();
             
-            for curr in a.drain(..).skip(1).take(31){
+            for curr in a.drain(..).skip(1).take(shortpath2::MAX_PATH_LENGTH){
             
                 use CardDir::*;
 
-                let dir=match curr-cursor{
-                    Vec2{x:1,y:0}=>{
-                        R
-                    },
-                    Vec2{x:-1,y:0}=>{
-                        L
-                    },
-                    Vec2{x:0,y:-1}=>{
-                        U
-                    },
-                    Vec2{x:0,y:1}=>{
-                        D
-                    },
-                    uhoh=>{
-                        unreachable!("{:?}",uhoh);
-                    }
-                };
+                let dir=CardDir2::from_offset(curr-cursor);
                 dirs.push(dir);
                 cursor=curr;
             }
 
-            Some(ShortPath::new(dirs.drain(..)))
+            Some(ShortPath2::new(dirs.drain(..)))
         },
         None=>{
             None
@@ -164,6 +190,11 @@ impl PathFinder{
     pub fn new()->PathFinder{
         PathFinder{requests:VecDeque::new(),finished:VecDeque::new(),timer:0}
     }
+
+    pub fn get_time(&self)->usize{
+        self.timer
+    }
+
     //add some new requests and also
     //process some request
     //
@@ -182,10 +213,10 @@ impl PathFinder{
 
         let infos_that_must_be_processed=self.requests.iter().enumerate().find(|a| (self.timer - a.1.time_put_in) < DELAY ).map(|a|a.0);
 
-        
+        //dbg!(infos_that_must_be_processed,self.requests.len());
         let num_to_process = match infos_that_must_be_processed{
             Some(a)=>{
-                a.max(1000)
+                a.max(1000) //TODO figure this out
             },
             None=>{
                 1000

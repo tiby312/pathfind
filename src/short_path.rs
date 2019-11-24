@@ -16,6 +16,103 @@ fn test_short(){
     assert_eq!(&v as &[_],&test_path);
 }
 
+
+pub mod shortpath2{
+    use super::*;
+
+    pub const MAX_PATH_LENGTH:usize=42;
+    const SENTINAL_VAL:u128=0b11;
+    #[derive(Copy,Clone,Eq,PartialEq,Debug)]
+    pub struct ShortPath2{
+        value:u128
+    }
+    impl ShortPath2{
+        pub fn new<I:IntoIterator<Item=CardDir2>+ExactSizeIterator>(it:I)->ShortPath2{
+            assert!(it.len()<=MAX_PATH_LENGTH,"You can only store a path of up to length 31 != 32.");
+
+            let mut value = 0;
+            let mut bit_index=0;
+            for a in it{
+                value |= (a as u128) << bit_index;
+                bit_index+=3;
+            }
+            value |= SENTINAL_VAL<<bit_index;
+
+            ShortPath2{value}
+        }
+
+        pub fn len(&self)->usize{
+            let l=self.value.leading_zeros() as usize;
+            //println!("l={:?}",l);
+            MAX_PATH_LENGTH-(l/2)
+        }
+        pub fn iter(&self)->ShortPath2Iter{
+            ShortPath2Iter{path:*self}
+        }
+    }
+
+
+    #[derive(Copy,Clone,Eq,PartialEq)]
+    pub struct ShortPath2Iter{
+        path:ShortPath2
+    }
+
+    impl fmt::Debug for ShortPath2Iter {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            let path:Vec<_> = self.collect();
+
+            write!(f, "Path:{:?}", path)
+        }
+    }
+
+    impl ShortPath2Iter{
+        pub fn peek(&self)->Option<CardDir2>{
+            if self.path.value ==SENTINAL_VAL{
+                return None
+            }
+
+            //make a copy
+            let cc=self.path.value;
+            cc>>3;
+
+            if cc == SENTINAL_VAL{
+                return None
+            }else{
+                use CardDir::*;
+                let k=self.path.value & 0b111;
+                //dbg!(k);
+                Some(CardDir2::from_u8(k as u8))
+            }
+        }
+    }
+
+    impl core::iter::FusedIterator for ShortPath2Iter{}
+    impl ExactSizeIterator for ShortPath2Iter{}
+    impl Iterator for ShortPath2Iter{
+        type Item=CardDir2;
+        
+        fn size_hint(&self)->(usize,Option<usize>){
+            let l = self.path.len();
+            (l,Some(l))
+        }
+        
+        fn next(&mut self)->Option<Self::Item>{
+            //If the path has nothing left in it except for the sentinal val
+            if self.path.value ==SENTINAL_VAL{
+                return None
+            }
+
+            let dir = CardDir2::from_u8((self.path.value & 0b111) as u8);
+
+            self.path.value=self.path.value >> 3;
+
+            Some(dir)
+        }
+    }
+
+}
+
+
 const SENTINAL_VAL:u64=0b11;
 
 pub const MAX_PATH_LENGTH:usize=31;
@@ -126,38 +223,65 @@ impl PathDiagAdapter{
         PathDiagAdapter{inner:path}
     }
 }
+
+
+fn intersects_walls(grid:&Grid2D,start:Vec2<GridNum>,end:Vec2<GridNum>)->bool{
+    use line_drawing::Supercover;
+
+    for (x, y) in Supercover::new((start.x,start.y),(end.x,end.y)) {
+        if let Some(x)=grid.get_option(vec2(x,y)){
+            if x{
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/*
+128 bits
+32 (8 directions)
+16*2
+2^5
+*/
+
+
 //DOES NOT IMPLEMENT EXACT SIZE
 impl PathDiagAdapter{
 
-    pub fn next(&mut self,grid:&Grid2D)->Option<Vec2<GridNum>>{
+    pub fn next(&mut self,radius:WorldNum,grid:&GridViewPort,walls:&Grid2D)->Option<Vec2<GridNum>>{
         self.inner.next()
         /*
+        let current_grid=self.inner.pos();
+
+        let current=grid.to_world_center(self.inner.pos());
+
         match self.inner.next(){
             Some(a)=>{
-                match self.inner.peek(){
-                    Some(b)=>{
-                        //if a and b are diagonal from each other and there is no wall
-                        let diff=b-a;
+                //If we arn't able to find any short cuts, we should just return a, at it is right now.
+                let mut test_current_grid=a;
+                let mut test_current=grid.to_world_center(a);
 
-                        //if its a diagonal
-                        if diff.abs() == vec2(1,1){
-                            println!("diagonal!");
-                            let [rleft,rright]=diff.split_into_components();
-
-                            if !grid.get(a+rleft) && !grid.get(a+rright){
-                                //safe to skip!
-                                self.inner.next() //which is b
-                            }else{
-                                Some(a)
-                            }
-                        }else{
-                            Some(a)
-                        }
-                    },
-                    None=>{
-                        Some(a)
+                let mut count=0;
+                while let Some(b)=self.inner.peek(){
+                    if count>=10{
+                        break;
                     }
+                    let tt=b;
+                    let tt_world=grid.to_world_center(tt);
+                    if crate::game::ray_hits_point(radius,current,tt_world,grid,walls){
+                        let j=self.inner.next().unwrap();
+                        assert_eq!(j,b);
+                        test_current_grid=b;
+                        test_current=grid.to_world_center(b);
+       
+                    }else{
+                        break;
+                    }
+                    count+=1;
                 }
+                
+                Some(test_current_grid)
             },
             None=>{
                 None
@@ -168,20 +292,23 @@ impl PathDiagAdapter{
 }
 
 
+ use crate::short_path::shortpath2::ShortPath2Iter;
+
+
 #[derive(Eq,PartialEq,Copy,Clone,Debug)]
 pub struct PathPointIter{
     cursor:Vec2<GridNum>,
-    path:ShortPathIter
+    path:ShortPath2Iter
 }
 impl PathPointIter{
-    pub fn new(start:Vec2<GridNum>,path:ShortPathIter)->PathPointIter{
+    pub fn new(start:Vec2<GridNum>,path:ShortPath2Iter)->PathPointIter{
         PathPointIter{cursor:start,path}
     }
     pub fn pos(&self)->Vec2<GridNum>{
         self.cursor
     }
     pub fn peek(&self)->Option<Vec2<GridNum>>{
-        self.path.peek().map(|p|self.cursor+p.into_vec())
+        self.path.peek().map(|p|self.cursor+p.into_offset().0)
     }
 }
 
@@ -199,7 +326,7 @@ impl Iterator for PathPointIter{
 
         match self.path.next(){
             Some(p)=>{
-                self.cursor+=p.into_vec();
+                self.cursor+=p.into_offset().0;
                 Some(self.cursor)      
             },
             None=>{
