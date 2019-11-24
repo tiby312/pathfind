@@ -22,6 +22,14 @@ pub struct StartEnd{
     pub end:Vec2<GridNum>,
 }
 impl StartEnd{
+    //TODO use this to re-use paths in the cache that are CLOSE to what we want.
+    //and then combine them.
+    fn compare_difference(&self,other:&StartEnd)->GridNum{
+        let dis1=(other.start-self.start).magnitude2();
+        //let dis2=(other.end-self.end).magnitude2();
+        //dis1.max(dis2)
+        dis1
+    }
     fn into_num(&self)->u64{
         (self.start.x as u64) << 48  | (self.start.y as u64) << 32 | (self.end.x as u64) << 16 | (self.end.y as u64)
     }
@@ -216,10 +224,10 @@ impl PathFinder{
         //dbg!(infos_that_must_be_processed,self.requests.len());
         let num_to_process = match infos_that_must_be_processed{
             Some(a)=>{
-                a.max(1000) //TODO figure this out
+                a.max(100) //TODO figure this out
             },
             None=>{
-                1000
+                100
             }
         };
 
