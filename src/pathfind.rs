@@ -113,7 +113,6 @@ mod test{
 
 fn perform_astar(grid:&Grid2D,req:PathFindInfo)->Option<ShortPath2>{
     //TODO this function does a bunch of dynamic allocation. how to avoid?
-    use pathfinding::prelude::*;
     fn successors(a:&Vec2<GridNum>,grid:&Grid2D) -> Vec<(Vec2<GridNum>, u32)> {
         
         let a=*a;
@@ -216,7 +215,7 @@ impl PathFinder{
         let num_to_process=100.max(infos_that_must_be_processed);
         
         let problem_vec:Vec<_>=self.requests.drain(0..num_to_process.min(self.requests.len())).collect();
-        use rayon::prelude::*;
+        //use rayon::prelude::*;
 
         let mut newv:Vec<_> = problem_vec.iter().map(|a|{
             (a.time_put_in,PathFindResult{info:a.info,path:perform_astar(grid,a.info)})

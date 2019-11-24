@@ -15,7 +15,7 @@ use duckduckgeo::grid::raycast::*;
 enum GridBotState{
 	DoingNothing,
 	Thinking,
-	Moving(PathDiagAdapter,usize) //Time since it last hit something.
+	Moving(PathPointIter,usize) //Time since it last hit something.
 }
 
 
@@ -41,11 +41,14 @@ pub struct Game{
 	walls:Grid2D,
 	bots:Vec<GridBot>,
 	pathfinder:PathFinder,
-	bots_debug:Vec<GridBot>
 }
 
 
-const GRID_STR:&str= "\
+mod maps{
+	use super::*;
+	
+
+	const GRID_STR:Map<'static>= Map{dim:vec2(16,9),str:"\
 ████████████████
 █    █   █     █
 █    █   █  █  █
@@ -55,8 +58,9 @@ const GRID_STR:&str= "\
 █      █       █
 █              █
 ████████████████
-";
-const GRID_STR2:&str= "\
+"};
+
+	const GRID_STR2:Map<'static>=Map{dim:vec2(16*2,9*2),str:"\
 ████████████████████████████████
 █    █   █     █               █
 █    █   █  █  █ █    █        █ 
@@ -75,9 +79,9 @@ const GRID_STR2:&str= "\
 █       █ █         █   █      █
 █       █     ██████████████████
 ████████████████████████████████
-";
+"};
 
-const GRID_STR3:&str= "\
+	pub const GRID_STR3:Map<'static>= Map{dim:vec2(16*4,9*4),str:"\
 ████████████████████████████████████████████████████████████████
 █    █   █     █                █
 █    █   █  █  █ █    █        █ 
@@ -114,13 +118,227 @@ const GRID_STR3:&str= "\
 █
 █
 ████████████████████████████████████████████████████████████████
-";
+"};
+}
+
+
+
+impl Game{
+	pub fn new()->Game{
+		let pathfinder=PathFinder::new();
+		let dim=Rect::new(0.0,1920.,0.0,1080.);
+		let grid_dim=vec2(16,9)*4;
+		let grid=GridViewPort{origin:vec2(0.0,0.0),spacing:vec2(1920./grid_dim.x as f32,1080./grid_dim.y as f32)};
+
+		let walls=Grid2D::from_str(maps::GRID_STR3);
+
+		let bot_prop=BotProp{
+            radius:Dist::new(12.0),
+            collision_drag:0.001,
+            collision_push:0.02,
+            minimum_dis_sqr:0.0001,
+            viscousity_coeff:0.03
+        };
+
+
+        dbg!(&grid);
+
+        let num_bot=10000;
+        let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
+    	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
+    		let bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
+    		//bot.pos=vec2(86.70752,647.98);
+    		//bot.vel=vec2(-0.03991765,0.22951305);
+    		GridBot{bot,state:GridBotState::DoingNothing}
+    	}).collect();
+
+
+    	for b in bots.iter_mut(){
+    		let bot=&mut b.bot;
+    		let prop=&bot_prop;
+
+    		if rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls){
+				bot.pos=grid.to_world_center(find_closest_empty(&walls,grid.to_grid(bot.pos)).unwrap());
+				assert!(!rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls));
+			}	
+    	}
+    	
+
+		Game{grid,walls,bots,pathfinder,bot_prop}
+	}
+
+	
+	pub fn get_wall_grid(&self)->(&GridViewPort,&Grid2D){
+		(&self.grid,&self.walls)
+	}
+
+	pub fn bot_len(&self)->usize{
+		self.bots.len()
+	}
+
+
+	pub fn get_bots(&self)->(&BotProp,&[GridBot]){
+		//(&self.bot_prop,&self.bots_debug)
+		(&self.bot_prop,&self.bots)
+	}
+
+	//main loop!!!!
+	pub fn step(&mut self){
+				
+		handle_path_assignment(self);		
+		handle_bot_bot_collision(self);
+
+		for b in self.bots.iter_mut(){
+			handle_bot_steering(b,&self.pathfinder,&self.grid);
+			handle_bot_moving(b,&self.bot_prop,&self.pathfinder,&self.grid,&self.walls);
+		}
+	}
+}
+
+
+
+fn create_bbox_wall(bot:&Bot,bot_prop:&BotProp)->Rect<WorldNum>{
+	let radius=bot_prop.radius.dis()*0.2;
+	Rect::from_point(bot.pos,vec2same(radius))
+}
+
+fn rect_is_touching_wall(rect:&Rect<WorldNum>,grid:&GridViewPort,walls:&Grid2D)->bool{
+	let corners=[
+		vec2(rect.x.left,rect.y.left),
+		vec2(rect.x.left,rect.y.right),
+		vec2(rect.x.right,rect.y.left),
+		vec2(rect.x.right,rect.y.right)
+	];
+
+	for (_i,&a) in corners.iter().enumerate(){
+		let _k = grid.to_grid_mod(a);
+
+		match walls.get_option(grid.to_grid(a)){
+			Some(walls)=>{
+				if walls{
+					return true;
+				}
+			},
+			None=>{
+
+			}
+		}
+	}
+	return false;
+}
+
+
+
+/*
+pub fn ray_hits_point(radius:WorldNum,start:Vec2<WorldNum>,end:Vec2<WorldNum>,grid:&GridViewPort,walls:&Grid2D)->bool{
+	let r=RayStorm::new(Rect::from_point(start,vec2same(radius)));
+
+	let dir=(end-start);
+	
+	let length=dir.magnitude();
+	match r.find_nearest_collision(grid,walls,dir.normalize_to(1.0),length){
+		Some(k)=>{
+			false
+		},
+		None=>{
+			true
+		}
+	}
+}
+*/
+
+#[derive(Copy,Clone,Debug)]
+struct RayStorm{
+	inner:[Vec2<WorldNum>;4]
+}
+
+#[derive(Debug)]
+struct BBoxCollideCellEvent{
+	inner:CollideCellEvent,
+	corner:Vec2<WorldNum> //offset
+}
+
+impl RayStorm{
+	fn new(rect:Rect<WorldNum>)->RayStorm{
+	
+		let inner=[
+			vec2(rect.x.left,rect.y.left),
+			vec2(rect.x.left,rect.y.right),
+			vec2(rect.x.right,rect.y.left),
+			vec2(rect.x.right,rect.y.right)
+		];
+		RayStorm{inner}
+	}
+
+	fn find_nearest_collision(&self,grid:&GridViewPort,walls:&Grid2D,dir:Vec2<WorldNum>,amount_left_to_move:WorldNum)->Option<BBoxCollideCellEvent>{
+		let mut results=Vec::new();
+		for &corner in self.inner.iter(){
+			let a=cast_ray(grid,walls,corner,dir,amount_left_to_move);	
+			if let Some(a)=a{
+				assert_le!(a.tval,amount_left_to_move);
+				results.push((corner,a));
+			}
+		}
+
+		match results.iter().min_by(|a,b|a.1.tval.partial_cmp(&b.1.tval).unwrap()){
+			Some(&(corner,a))=>{
+				Some(BBoxCollideCellEvent{corner,inner:a})
+			},
+			None=>{
+				None
+			}
+		}
+	}
+}
+
+
+
+
+
+fn cast_ray(grid:&GridViewPort,walls:&Grid2D,point:Vec2<WorldNum>,dir:Vec2<WorldNum>,max_tval:WorldNum)->Option<CollideCellEvent>{
+
+	let ray=duckduckgeo::Ray{point,dir};
+	
+	let caster= RayCaster::new(grid,ray);
+	
+
+	if let Some(wall)=walls.get_option(grid.to_grid(point)){
+		let grid_mod=grid.to_grid_mod(point);
+		assert!(!wall,"We are starting the raycast inside a wall! point:{:?} grid mod:{:?}",point,grid_mod);
+	}
+
+
+	for a in caster{
+		if a.tval<=max_tval{				
+			match walls.get_option(a.cell){
+				Some(wall)=>{
+					if wall{								
+						
+						if let Some(wall) = walls.get_option(a.cell+a.dir_hit.into_vec()){
+							if wall{
+								panic!("dont know how to handle this case")
+							}
+						}
+					
+						return Some(a);
+					}		
+				},
+				None=>{
+					return None; //We've ray casted off the wall grid.
+				}		
+			}
+		}else{
+			return None;
+		}
+	}
+	unreachable!()
+}
+
 
 
 
 fn handle_bot_bot_collision(game:&mut Game){
 	use dinotree::prelude::*;
-	use axgeom;
 	use axgeom::ordered_float::*;
     
 	let bot_prop=&game.bot_prop;
@@ -176,7 +394,7 @@ fn handle_path_assignment(game:&mut Game){
 				//dbg!(b.pos,path);
 				//println!("Attempting to go to {:?}",(b.pos,self.grid.convert_to_world(b.pos)));
 				//println!("starting to new. current pos={:?}",(b.pos,b.bot.pos));
-				let k=PathDiagAdapter::new(PathPointIter::new(res.info.start,path.iter()));
+				let k=PathPointIter::new(res.info.start,path.iter());
 
 				//let _ = self.grid.inner.draw_map_and_path(k.inner);
 				//println!("starting new path path={:?}",k);
@@ -193,7 +411,7 @@ fn handle_path_assignment(game:&mut Game){
 }
 
 
-fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,walls:&Grid2D){
+fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort){
 	let _grid_bot_save=*b;
 	let state=&mut b.state;
 	let bot=&mut b.bot;
@@ -209,9 +427,9 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 				*state=GridBotState::DoingNothing;
 			}else{
 			
-				if bot.move_to_point(grid.to_world_center(pointiter.inner.pos()),target_radius){
+				if bot.move_to_point(grid.to_world_center(pointiter.pos()),target_radius){
 					
-					match pointiter.next(14.0,&grid,&walls){
+					match pointiter.next(){
 						Some(_target)=>{
 							*time=pathfinder.get_time();
 						},
@@ -321,233 +539,3 @@ fn handle_bot_moving(b:&mut GridBot,prop:&BotProp,_pathfinder:&PathFinder,grid:&
 	assert!(!rect_is_touching_wall(&create_bbox_wall(bot,prop),grid,walls));
 
 }
-
-
-impl Game{
-	pub fn new()->Game{
-		let pathfinder=PathFinder::new();
-		let dim=Rect::new(0.0,1920.,0.0,1080.);
-		let grid_dim=vec2(16,9)*4;
-		let grid=GridViewPort{origin:vec2(0.0,0.0),spacing:vec2(1920./grid_dim.x as f32,1080./grid_dim.y as f32)};
-
-		let walls=Grid2D::from_str(grid_dim,GRID_STR3);
-
-		let bot_prop=BotProp{
-            radius:Dist::new(12.0),
-            collision_drag:0.001,
-            collision_push:0.02,
-            minimum_dis_sqr:0.0001,
-            viscousity_coeff:0.03
-        };
-
-
-        dbg!(&grid);
-
-        let num_bot=10000;
-        let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
-    	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
-    		let bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
-    		//bot.pos=vec2(86.70752,647.98);
-    		//bot.vel=vec2(-0.03991765,0.22951305);
-    		GridBot{bot,state:GridBotState::DoingNothing}
-    	}).collect();
-
-
-    	for b in bots.iter_mut(){
-    		let bot=&mut b.bot;
-    		let prop=&bot_prop;
-
-    		if rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls){
-				bot.pos=grid.to_world_center(find_closest_empty(&walls,grid.to_grid(bot.pos)).unwrap());
-				assert!(!rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls));
-			}	
-    	}
-    	
-
-		Game{grid,walls,bots,pathfinder,bot_prop,bots_debug:Vec::new()}
-	}
-
-	
-	pub fn get_wall_grid(&self)->(&GridViewPort,&Grid2D){
-		(&self.grid,&self.walls)
-	}
-
-	pub fn bot_len(&self)->usize{
-		self.bots.len()
-	}
-
-
-	pub fn get_bots(&self)->(&BotProp,&[GridBot]){
-		//(&self.bot_prop,&self.bots_debug)
-		(&self.bot_prop,&self.bots)
-	}
-
-	//main loop!!!!
-	pub fn step(&mut self){
-				
-		handle_path_assignment(self);		
-		handle_bot_bot_collision(self);
-
-		for b in self.bots.iter_mut(){
-			handle_bot_steering(b,&self.pathfinder,&self.grid,&self.walls);
-			handle_bot_moving(b,&self.bot_prop,&self.pathfinder,&self.grid,&self.walls);
-		}
-	}
-}
-
-
-
-fn create_bbox_wall(bot:&Bot,bot_prop:&BotProp)->Rect<WorldNum>{
-	let radius=bot_prop.radius.dis()*0.2;
-	Rect::from_point(bot.pos,vec2same(radius))
-}
-
-fn rect_is_touching_wall(rect:&Rect<WorldNum>,grid:&GridViewPort,walls:&Grid2D)->bool{
-	let corners=[
-		vec2(rect.x.left,rect.y.left),
-		vec2(rect.x.left,rect.y.right),
-		vec2(rect.x.right,rect.y.left),
-		vec2(rect.x.right,rect.y.right)
-	];
-
-	for (_i,&a) in corners.iter().enumerate(){
-		let _k = grid.to_grid_mod(a);
-
-		match walls.get_option(grid.to_grid(a)){
-			Some(walls)=>{
-				if walls{
-					return true;
-				}
-			},
-			None=>{
-
-			}
-		}
-	}
-	return false;
-}
-
-
-
-#[derive(Copy,Clone,Debug)]
-struct BotDebug<'a>{
-	bot:&'a Bot,
-	prop:&'a BotProp,
-	mod_pos:Vec2<WorldNum>,
-	speed:WorldNum
-}
-impl<'a> BotDebug<'a>{
-	pub fn new(bot:&'a Bot,prop:&'a BotProp,grid:&GridViewPort,_walls:&Grid2D)->BotDebug<'a>{
-		let mod_pos=grid.to_grid_mod(bot.pos);
-		let speed=bot.vel.magnitude();
-		BotDebug{bot,prop,mod_pos,speed}
-	}
-}
-
-
-/*
-pub fn ray_hits_point(radius:WorldNum,start:Vec2<WorldNum>,end:Vec2<WorldNum>,grid:&GridViewPort,walls:&Grid2D)->bool{
-	let r=RayStorm::new(Rect::from_point(start,vec2same(radius)));
-
-	let dir=(end-start);
-	
-	let length=dir.magnitude();
-	match r.find_nearest_collision(grid,walls,dir.normalize_to(1.0),length){
-		Some(k)=>{
-			false
-		},
-		None=>{
-			true
-		}
-	}
-}
-*/
-
-#[derive(Copy,Clone,Debug)]
-struct RayStorm{
-	inner:[Vec2<WorldNum>;4]
-}
-
-#[derive(Debug)]
-struct BBoxCollideCellEvent{
-	inner:CollideCellEvent,
-	corner:Vec2<WorldNum> //offset
-}
-
-impl RayStorm{
-	fn new(rect:Rect<WorldNum>)->RayStorm{
-	
-		let inner=[
-			vec2(rect.x.left,rect.y.left),
-			vec2(rect.x.left,rect.y.right),
-			vec2(rect.x.right,rect.y.left),
-			vec2(rect.x.right,rect.y.right)
-		];
-		RayStorm{inner}
-	}
-
-	fn find_nearest_collision(&self,grid:&GridViewPort,walls:&Grid2D,dir:Vec2<WorldNum>,amount_left_to_move:WorldNum)->Option<BBoxCollideCellEvent>{
-		let mut results=Vec::new();
-		for &corner in self.inner.iter(){
-			let a=cast_ray(grid,walls,corner,dir,amount_left_to_move);	
-			if let Some(a)=a{
-				assert_le!(a.tval,amount_left_to_move);
-				results.push((corner,a));
-			}
-		}
-
-		match results.iter().min_by(|a,b|a.1.tval.partial_cmp(&b.1.tval).unwrap()){
-			Some(&(corner,a))=>{
-				Some(BBoxCollideCellEvent{corner,inner:a})
-			},
-			None=>{
-				None
-			}
-		}
-	}
-}
-
-
-
-
-
-fn cast_ray(grid:&GridViewPort,walls:&Grid2D,point:Vec2<WorldNum>,dir:Vec2<WorldNum>,max_tval:WorldNum)->Option<CollideCellEvent>{
-
-	let ray=duckduckgeo::Ray{point,dir};
-	
-	let caster= RayCaster::new(grid,ray);
-	
-
-	if let Some(wall)=walls.get_option(grid.to_grid(point)){
-		let grid_mod=grid.to_grid_mod(point);
-		assert!(!wall,"We are starting the raycast inside a wall! point:{:?} grid mod:{:?}",point,grid_mod);
-	}
-
-
-	for a in caster{
-		if a.tval<=max_tval{				
-			match walls.get_option(a.cell){
-				Some(wall)=>{
-					if wall{								
-						
-						if let Some(wall) = walls.get_option(a.cell+a.dir_hit.into_vec()){
-							if wall{
-								panic!("dont know how to handle this case")
-							}
-						}
-					
-						return Some(a);
-					}		
-				},
-				None=>{
-					return None; //We've ray casted off the wall grid.
-				}		
-			}
-		}else{
-			return None;
-		}
-	}
-	unreachable!()
-}
-
-
