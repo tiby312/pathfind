@@ -48,7 +48,7 @@ mod maps{
 	use super::*;
 	
 
-	const GRID_STR:Map<'static>= Map{dim:vec2(16,9),str:"\
+	pub const GRID_STR1:Map<'static>= Map{dim:vec2(16,9),str:"\
 ████████████████
 █    █   █     █
 █    █   █  █  █
@@ -60,7 +60,7 @@ mod maps{
 ████████████████
 "};
 
-	const GRID_STR2:Map<'static>=Map{dim:vec2(16*2,9*2),str:"\
+	pub const GRID_STR2:Map<'static>=Map{dim:vec2(16*2,9*2),str:"\
 ████████████████████████████████
 █    █   █     █               █
 █    █   █  █  █ █    █        █ 
@@ -94,9 +94,9 @@ mod maps{
 █          █████ ███   █████   █         ███████         █     █
 █                              █   █                           █
 ███████████████   ███████████  █                      █        █
-█            █    █   █    █   █                               █
-█       █   █    ██ █ █ █  █   █       █        █              █
-█       █  █   ██   █ █ █  █   █                               █
+█            █    █   █    █    █                              █
+█       █   █    ██ █ █ █  █    █      █        █              █
+█       █  █   ██   █ █ █  █    █                              █
 █       █ █         █   █      █          █                    █
 █       █     ████████████████ █                               █
 █████████████████████████████  █████████████   █████████████████
@@ -123,19 +123,25 @@ mod maps{
 
 
 
+fn create_bbox_wall(bot:&Bot,bot_prop:&BotProp)->Rect<WorldNum>{
+	let radius=bot_prop.radius.dis()*0.5;
+	Rect::from_point(bot.pos,vec2same(radius))
+}
+
 impl Game{
 	pub fn new()->Game{
 		let pathfinder=PathFinder::new();
 		let dim=Rect::new(0.0,1920.,0.0,1080.);
-		let grid_dim=vec2(16,9)*4;
+		let map=maps::GRID_STR3;
+		let grid_dim=map.dim;
 		let grid=GridViewPort{origin:vec2(0.0,0.0),spacing:vec2(1920./grid_dim.x as f32,1080./grid_dim.y as f32)};
 
-		let walls=Grid2D::from_str(maps::GRID_STR3);
+		let walls=Grid2D::from_str(map);
 
 		let bot_prop=BotProp{
-            radius:Dist::new(12.0),
+            radius:Dist::new(8.0),
             collision_drag:0.001,
-            collision_push:0.02,
+            collision_push:0.01,
             minimum_dis_sqr:0.0001,
             viscousity_coeff:0.03
         };
@@ -143,7 +149,7 @@ impl Game{
 
         dbg!(&grid);
 
-        let num_bot=10000;
+        let num_bot=2000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
@@ -196,11 +202,6 @@ impl Game{
 }
 
 
-
-fn create_bbox_wall(bot:&Bot,bot_prop:&BotProp)->Rect<WorldNum>{
-	let radius=bot_prop.radius.dis()*0.2;
-	Rect::from_point(bot.pos,vec2same(radius))
-}
 
 fn rect_is_touching_wall(rect:&Rect<WorldNum>,grid:&GridViewPort,walls:&Grid2D)->bool{
 	let corners=[
@@ -422,27 +423,36 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort)
 
 	match state{
 		GridBotState::Moving(ref mut pointiter,time)=>{
-			
-			if pathfinder.get_time()>*time+600{
+			let a=grid.to_grid(bot.pos);
+			if (a-pointiter.pos()).magnitude2()>2{
 				*state=GridBotState::DoingNothing;
-			}else{
+			}
+		},
+		_=>{}
+
+	}
+	match state{
+		GridBotState::Moving(ref mut pointiter,time)=>{
+
 			
-				if bot.move_to_point(grid.to_world_center(pointiter.pos()),target_radius){
-					
-					match pointiter.next(){
-						Some(_target)=>{
-							*time=pathfinder.get_time();
-						},
-						None=>{
-							*state=GridBotState::DoingNothing;
-						}
+
+			if bot.move_to_point(grid.to_world_center(pointiter.pos()),target_radius){
+				
+				match pointiter.next(){
+					Some(_target)=>{
+						*time=pathfinder.get_time();
+					},
+					None=>{
+						*state=GridBotState::DoingNothing;
 					}
 				}
 			}
+		
 		},
 		GridBotState::Thinking |
 		GridBotState::DoingNothing=>{
-			bot.move_to_point(bot.pos,target_radius);
+			bot.acc=-bot.vel.truncate_at(0.03);
+			//bot.move_to_point(bot.pos,target_radius);
 		}
 	}
 	
@@ -480,6 +490,8 @@ fn handle_bot_moving(b:&mut GridBot,prop:&BotProp,_pathfinder:&PathFinder,grid:&
 		while amount_left_to_move>0.0{
 	
 			let _bot_save=*bot;
+
+			//we grow the aabb a bit to carch corner cases where we move diagonally
 			let rect= *create_bbox_wall(bot,prop).grow(EXTRA); //TODO figure this out.
 			assert!(!rect_is_touching_wall(&rect,grid,walls));
 			
