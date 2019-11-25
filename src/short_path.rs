@@ -67,6 +67,21 @@ pub mod shortpath2{
     }
 
 
+    impl ShortPath2Iter{
+        pub fn peek(&self)->Option<CardDir2>{
+            //If the path has nothing left in it except for the sentinal val
+            if self.path.value ==SENTINAL_VAL{
+                return None
+            }
+
+            let dir = CardDir2::from_u8((self.path.value & 0b111) as u8);
+
+            //self.path.value=self.path.value >> 3;
+
+            Some(dir)
+        }
+    }
+
     impl core::iter::FusedIterator for ShortPath2Iter{}
     impl ExactSizeIterator for ShortPath2Iter{}
     impl Iterator for ShortPath2Iter{
@@ -98,6 +113,9 @@ pub mod shortpath2{
 
 
 
+
+
+
  use crate::short_path::shortpath2::ShortPath2Iter;
 
 
@@ -112,6 +130,9 @@ impl PathPointIter{
     }
     pub fn pos(&self)->Vec2<GridNum>{
         self.cursor
+    }
+    pub fn peek(&self)->Option<Vec2<GridNum>>{
+        self.path.peek().map(|a|self.cursor+a.into_offset().0)
     }
 }
 
