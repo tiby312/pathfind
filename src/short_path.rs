@@ -134,6 +134,12 @@ impl PathPointIter{
     pub fn peek(&self)->Option<Vec2<GridNum>>{
         self.path.peek().map(|a|self.cursor+a.into_offset().0)
     }
+
+    pub fn double_peek(&self)->Option<Vec2<GridNum>>{
+        let mut k=*self;
+        k.next();
+        k.peek()
+    }
 }
 
 impl core::iter::FusedIterator for PathPointIter{}

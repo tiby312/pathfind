@@ -420,38 +420,41 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 	//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
 
 
-	/*
-	//if we get pushed too far away from our spot, just recalculate.
-	match state{
-		GridBotState::Moving(ref mut pointiter,time)=>{
-			let a=grid.to_grid(bot.pos);
-			if (a-pointiter.pos()).magnitude2()>2{
-				*state=GridBotState::DoingNothing;
-			}
-		},
-		_=>{}
+	struct RayCastToSquare<'a>{
+		bot:&'a Bot,
+		grid:&'a GridViewPort,
+		walls:&'a Grid2D,
 	}
-	*/
+	impl<'a> RayCastToSquare<'a>{
+		fn cast(&self,end:Vec2<GridNum>)->bool{
+			let end=self.grid.to_world_center(end);
+			let start=self.bot.pos;
+			let offset=end-start;
+			let max_tval=offset.magnitude();
+			cast_ray(self.grid,self.walls,start,offset.normalize_to(1.0),max_tval).is_some()
+		}
+	}
+
+	
 
 	match state{
 		GridBotState::Moving(ref mut pointiter,time)=>{
 
+			let r=RayCastToSquare{bot,grid,walls};
 
 			match pointiter.peek(){
 				Some(next)=>{
-					let offset=(grid.to_world_center(next)-bot.pos);
-					let max_tval=offset.magnitude();
-					//let max_tval=grid.spacing.x*0.7;//*(2.0_f32.sqrt()+0.01);
-			
-					match cast_ray(grid,walls,bot.pos,offset.normalize_to(1.0),max_tval){
-						Some(hit)=>{
 
-							let offset=(grid.to_world_center(pointiter.pos())-bot.pos);
-							let max_tval=offset.magnitude();
-							match cast_ray(grid,walls,bot.pos,offset.normalize_to(1.0),max_tval){
-								Some(hit)=>{
-									//We can't even see our last position.
-									//just try and go to the center of the cell we're in. 
+					//If we can't see our target
+					if r.cast(next){
+						//If we can't see our previous target
+						if r.cast(pointiter.pos()){	
+							
+							if let Some(ppos) =pointiter.double_peek(){
+								//If we can't see our next target.
+								if r.cast(ppos){	
+									
+									//Hust try and go to the center of the cell we're in. 
 									//maybe that will help us.
 									let gp=grid.to_grid(bot.pos);
 
@@ -461,31 +464,47 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 									}
 
 									let _ = bot.move_to_point(grid.to_world_center(gp),target_radius);
+
+								}else{
+									let _ = bot.move_to_point(grid.to_world_center(ppos),target_radius);
+								}
+							
+							}else{
+								//just try and go to the center of the cell we're in. 
+								//maybe that will help us.
+								let gp=grid.to_grid(bot.pos);
+
+								//first check that we're not in a wall
+								if let Some(wall)=walls.get_option(gp){
+									assert!(!wall);
+								}
+
+								let _ = bot.move_to_point(grid.to_world_center(gp),target_radius);	
+							}
+
+						}else{
+							//We can't see our target, but we can see our last target.
+							//try going to our last target.
+							let _ = bot.move_to_point(grid.to_world_center(pointiter.pos()),target_radius);		
+						}
+						
+					}else{
+						//We have clear line of sight to our target.
+						//Lets go to the target.
+						if bot.move_to_point(grid.to_world_center(next),target_radius){
+							
+							//dbg!("HIT TARGET!");
+							match pointiter.next(){
+								Some(_target)=>{
+									*time=pathfinder.get_time();
 								},
 								None=>{
-									//We can't see our target, but we can see our last target.
-									//try going to our last target.
-									let _ = bot.move_to_point(grid.to_world_center(pointiter.pos()),target_radius);		
-								}
-							}
-						},
-						None=>{
-							//We have clear line of sight to our target.
-							//Lets go to the target.
-							if bot.move_to_point(grid.to_world_center(next),target_radius){
-								
-								//dbg!("HIT TARGET!");
-								match pointiter.next(){
-									Some(_target)=>{
-										*time=pathfinder.get_time();
-									},
-									None=>{
-										
-									}
+									
 								}
 							}
 						}
 					}
+					
 				},
 				None=>{
 					*state=GridBotState::DoingNothing;
