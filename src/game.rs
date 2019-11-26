@@ -12,7 +12,7 @@ use duckduckgeo::grid::raycast::*;
 //use duckduckgeo::grid::CardDir;
 
 #[derive(Eq,PartialEq,Debug,Copy,Clone)]
-enum GridBotState{
+pub enum GridBotState{
 	DoingNothing,
 	Thinking,
 	Moving(PathPointIter,usize) //Time since it last hit something.
@@ -22,13 +22,8 @@ enum GridBotState{
 
 #[derive(Copy,Clone,Debug)]
 pub struct GridBot{
-	bot:Bot,
-	state:GridBotState
-}
-impl GridBot{
-	pub fn get(&self)->&Bot{
-		&self.bot
-	}
+	pub bot:Bot,
+	pub state:GridBotState
 }
 
 
@@ -134,7 +129,10 @@ impl Game{
 		let dim=Rect::new(0.0,1920.,0.0,1080.);
 		let map=maps::GRID_STR3;
 		let grid_dim=map.dim;
-		let grid=GridViewPort{origin:vec2(0.0,0.0),spacing:vec2(1920./grid_dim.x as f32,1080./grid_dim.y as f32)};
+
+		assert_eq!(1920./grid_dim.x as f32,1080./grid_dim.y as f32);
+
+		let grid=GridViewPort{origin:vec2(0.0,0.0),spacing:1920./grid_dim.x as f32};
 
 		let walls=Grid2D::from_str(map);
 
@@ -418,7 +416,7 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 	let bot=&mut b.bot;
 
 	
-	let target_radius=grid.cell_radius().x*0.4;
+	let target_radius=grid.cell_radius()*0.4;
 	//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
 
 
