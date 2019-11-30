@@ -141,7 +141,7 @@ impl Game{
             collision_drag:0.001,
             collision_push:0.01,
             minimum_dis_sqr:0.0001,
-            viscousity_coeff:0.03
+            viscousity_coeff:0.003
         };
 
 
@@ -203,10 +203,10 @@ impl Game{
 
 fn rect_is_touching_wall(rect:&Rect<WorldNum>,grid:&GridViewPort,walls:&Grid2D)->bool{
 	let corners=[
-		vec2(rect.x.left,rect.y.left),
-		vec2(rect.x.left,rect.y.right),
-		vec2(rect.x.right,rect.y.left),
-		vec2(rect.x.right,rect.y.right)
+		vec2(rect.x.start,rect.y.start),
+		vec2(rect.x.start,rect.y.end),
+		vec2(rect.x.end,rect.y.start),
+		vec2(rect.x.end,rect.y.end)
 	];
 
 	for (_i,&a) in corners.iter().enumerate(){
@@ -261,10 +261,10 @@ impl RayStorm{
 	fn new(rect:Rect<WorldNum>)->RayStorm{
 	
 		let inner=[
-			vec2(rect.x.left,rect.y.left),
-			vec2(rect.x.left,rect.y.right),
-			vec2(rect.x.right,rect.y.left),
-			vec2(rect.x.right,rect.y.right)
+			vec2(rect.x.start,rect.y.start),
+			vec2(rect.x.start,rect.y.end),
+			vec2(rect.x.end,rect.y.start),
+			vec2(rect.x.end,rect.y.end)
 		];
 		RayStorm{inner}
 	}
@@ -337,18 +337,18 @@ fn cast_ray(grid:&GridViewPort,walls:&Grid2D,point:Vec2<WorldNum>,dir:Vec2<World
 
 
 fn handle_bot_bot_collision(game:&mut Game){
-	use dinotree::prelude::*;
-	use axgeom::ordered_float::*;
+	use dinotree_alg::prelude::*;
+	use ordered_float::*;
     
 	let bot_prop=&game.bot_prop;
-    let mut bots:Vec<BBoxMut<NotNan<f32>,GridBot>>=create_bbox_mut(&mut game.bots,|bot|{
-        bot.bot.create_bbox(bot_prop).inner_try_into().unwrap()
+    let mut bots:Vec<_>=bbox_helper::create_bbox_mut(&mut game.bots,|bot|{
+        bot.bot.create_bbox(bot_prop).inner_try_into::<NotNan<_>>().unwrap()
     });
 
-    let mut tree=DinoTreeBuilder::new(axgeom::YAXISS,&mut bots).build_par();
+    let mut tree=DinoTree::new_par(&mut bots);
 
     
-    dinotree_alg::colfind::QueryBuilder::new(&mut tree).query_par(|mut a,mut b|{
+    tree.find_collisions_mut_par(|mut a,mut b|{
         bot_prop.collide(&mut a.inner_mut().bot,&mut b.inner_mut().bot);
     });
 }
@@ -416,8 +416,7 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 	let bot=&mut b.bot;
 
 	
-	let target_radius=grid.cell_radius()*0.4;
-	//assert!(assert_bot_is_not_touching_wall(&bot,&self.bot_prop,&self.grid,&self.walls));
+	let target_radius=grid.cell_radius()*0.5;
 
 
 	struct RayCastToSquare<'a>{
@@ -435,7 +434,7 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 		}
 	}
 
-	
+
 
 	match state{
 		GridBotState::Moving(ref mut pointiter,time)=>{
@@ -454,7 +453,7 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 								//If we can't see our next target.
 								if r.cast(ppos){	
 									
-									//Hust try and go to the center of the cell we're in. 
+									//Just try and go to the center of the cell we're in. 
 									//maybe that will help us.
 									let gp=grid.to_grid(bot.pos);
 
@@ -508,7 +507,6 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 				},
 				None=>{
 					*state=GridBotState::DoingNothing;
-					//unreachable!("should be impossible?");
 				}
 			
 			}

@@ -1,9 +1,9 @@
-pub use dinotree;
+pub use dinotree_alg;
 pub use duckduckgeo;
 
 
-use dinotree::axgeom::*;
-use dinotree::axgeom;
+use axgeom::*;
+use axgeom;
 
 
 #[macro_use]
