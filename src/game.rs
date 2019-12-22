@@ -124,8 +124,10 @@ fn create_bbox_wall(bot:&Bot,bot_prop:&BotProp)->Rect<WorldNum>{
 }
 
 impl Game{
-	pub fn new()->Game{
+	pub fn new()->(Game,Vec2<f32>){
 		let pathfinder=PathFinder::new();
+		let area=vec2(1920.,1080.);
+
 		let dim=Rect::new(0.0,1920.,0.0,1080.);
 		let map=maps::GRID_STR3;
 		let grid_dim=map.dim;
@@ -168,7 +170,7 @@ impl Game{
     	}
     	
 
-		Game{grid,walls,bots,pathfinder,bot_prop}
+		(Game{grid,walls,bots,pathfinder,bot_prop},area)
 	}
 
 	
@@ -296,7 +298,7 @@ impl RayStorm{
 
 fn cast_ray(grid:&GridViewPort,walls:&Grid2D,point:Vec2<WorldNum>,dir:Vec2<WorldNum>,max_tval:WorldNum)->Option<CollideCellEvent>{
 
-	let ray=duckduckgeo::Ray{point,dir};
+	let ray=axgeom::Ray{point,dir};
 	
 	let caster= RayCaster::new(grid,ray);
 	
