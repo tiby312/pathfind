@@ -146,9 +146,6 @@ impl Game{
             viscousity_coeff:0.003
         };
 
-
-        dbg!(&grid);
-
         let num_bot=5000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
