@@ -164,7 +164,7 @@ impl Game{
     		let prop=&bot_prop;
 
     		if rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls){
-				bot.pos=grid.to_world_center(find_closest_empty(&walls,grid.to_grid(bot.pos)).unwrap());
+				bot.pos=grid.to_world_center(walls.find_closest_empty(grid.to_grid(bot.pos)).unwrap());
 				assert!(!rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls));
 			}	
     	}
@@ -364,18 +364,18 @@ fn handle_path_assignment(game:&mut Game){
 
 			let start =match game.walls.get_option(start){
 				None=>{
-					find_closest_empty(&game.walls,start).unwrap()
+					game.walls.find_closest_empty(start).unwrap()
 				},
 				Some(walls)=>{
 					if walls{
-						find_closest_empty(&game.walls,start).unwrap()
+						game.walls.find_closest_empty(start).unwrap()
 					}else{
 						start
 					}
 				}
 			};
 
-			let end = pick_empty_spot(&game.walls).unwrap();
+			let end = game.walls.pick_empty_spot().unwrap();
 				
 			let req = PathFindInfo{start,end,bot_index:i};
 			b.state = GridBotState::Thinking;
