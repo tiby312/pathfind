@@ -2,20 +2,27 @@
 
 
 
+use duckduckgeo::bot::BotProp;
 use crate::pathfind::*;
 use crate::short_path::*;
 
 use crate::axgeom::*;
-use duckduckgeo::bot::*;
 use duckduckgeo::grid::*;
 use duckduckgeo::grid::raycast::*;
 //use duckduckgeo::grid::CardDir;
+use duckduckgeo::bot::Dist;
 
 #[derive(Eq,PartialEq,Debug,Copy,Clone)]
 pub enum GridBotState{
 	DoingNothing,
 	Thinking,
 	Moving(PathPointIter,usize) //Time since it last hit something.
+}
+
+#[derive(Copy,Clone,Debug)]
+pub struct Bot{
+	pub pos:Vec2<f32>,
+	pub vel:Vec2<f32>
 }
 
 
@@ -28,6 +35,17 @@ pub struct GridBot{
 
 
 
+impl seq_impulse::VelocitySolvable for GridBot{
+	fn pos(&self)->&Vec2<f32>{
+		&self.bot.pos
+	}
+	fn vel_mut(&mut self)->&mut Vec2<f32>{
+		&mut self.bot.vel
+	}
+}
+
+
+
 
 
 pub struct Game{
@@ -36,6 +54,7 @@ pub struct Game{
 	walls:Grid2D,
 	bots:Vec<GridBot>,
 	pathfinder:PathFinder,
+	velocity_solver:seq_impulse::CollisionVelocitySolver
 }
 
 
@@ -117,7 +136,6 @@ mod maps{
 }
 
 
-
 fn create_bbox_wall(bot:&Bot,bot_prop:&BotProp)->Rect<WorldNum>{
 	let radius=bot_prop.radius.dis()*0.5;
 	Rect::from_point(bot.pos,vec2same(radius))
@@ -139,7 +157,7 @@ impl Game{
 		let walls=Grid2D::from_str(map);
 
 		let bot_prop=BotProp{
-            radius:Dist::new(8.0),
+            radius:Dist::new(4.0),
             collision_drag:0.001,
             collision_push:0.01,
             minimum_dis_sqr:0.0001,
@@ -149,9 +167,7 @@ impl Game{
         let num_bot=5000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
-    		let bot=Bot::new(vec2(pos.x as f32,pos.y as f32));
-    		//bot.pos=vec2(86.70752,647.98);
-    		//bot.vel=vec2(-0.03991765,0.22951305);
+    		let bot=Bot{pos:pos.inner_as(),vel:vec2same(0.0)};
     		GridBot{bot,state:GridBotState::DoingNothing}
     	}).collect();
 
@@ -160,14 +176,14 @@ impl Game{
     		let bot=&mut b.bot;
     		let prop=&bot_prop;
 
-    		if rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls){
+    		if rect_is_touching_wall( &Rect::from_point(bot.pos, vec2same(prop.radius.dis())),&grid,&walls){
 				bot.pos=grid.to_world_center(walls.find_closest_empty(grid.to_grid(bot.pos)).unwrap());
-				assert!(!rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls));
+				//assert!(!rect_is_touching_wall(&bot.create_bbox(prop),&grid,&walls));
 			}	
     	}
     	
 
-		(Game{grid,walls,bots,pathfinder,bot_prop},area)
+		(Game{grid,walls,bots,pathfinder,bot_prop,velocity_solver:seq_impulse::CollisionVelocitySolver::new()},area)
 	}
 
 	
@@ -189,11 +205,16 @@ impl Game{
 	pub fn step(&mut self){
 				
 		handle_path_assignment(self);		
+		
+		for b in self.bots.iter_mut(){
+			handle_bot_steering(b,&self.pathfinder,&self.grid,&self.walls);
+			//handle_bot_moving(b,&self.bot_prop,&self.pathfinder,&self.grid,&self.walls);
+		}
+
 		handle_bot_bot_collision(self);
 
 		for b in self.bots.iter_mut(){
-			handle_bot_steering(b,&self.pathfinder,&self.grid,&self.walls);
-			handle_bot_moving(b,&self.bot_prop,&self.pathfinder,&self.grid,&self.walls);
+			b.bot.pos+=b.bot.vel;
 		}
 	}
 }
@@ -302,7 +323,10 @@ fn cast_ray(grid:&GridViewPort,walls:&Grid2D,point:Vec2<WorldNum>,dir:Vec2<World
 
 	if let Some(wall)=walls.get_option(grid.to_grid(point)){
 		let grid_mod=grid.to_grid_mod(point);
-		assert!(!wall,"We are starting the raycast inside a wall! point:{:?} grid mod:{:?}",point,grid_mod);
+		if wall{
+			return None
+		}
+		//assert!(!wall,"We are starting the raycast inside a wall! point:{:?} grid mod:{:?}",point,grid_mod);
 	}
 
 
@@ -340,16 +364,19 @@ fn handle_bot_bot_collision(game:&mut Game){
 	use ordered_float::*;
     
 	let bot_prop=&game.bot_prop;
-    let mut bots:Vec<_>=bbox_helper::create_bbox_mut(&mut game.bots,|bot|{
-        bot.bot.create_bbox(bot_prop).inner_try_into::<NotNan<_>>().unwrap()
-    });
+    //let mut bots:Vec<_>=bbox_helper::create_bbox_mut(&mut game.bots,);
 
-    let mut tree=DinoTree::new_par(&mut bots);
+    let mut tree=dinotree_alg::collectable::CollectableDinoTree::new(&mut game.bots,|bot|{
+    	Rect::from_point(bot.bot.pos,vec2same(bot_prop.radius.dis())).inner_try_into::<NotNan<_>>().unwrap()
+    });
 
     
+    game.velocity_solver.solve(game.bot_prop.radius.dis(),&game.grid,&game.walls,&mut tree);
+    /*
     tree.find_collisions_mut_par(|mut a,mut b|{
-        bot_prop.collide(&mut a.inner_mut().bot,&mut b.inner_mut().bot);
+        //bot_prop.collide(&mut a.inner_mut().bot,&mut b.inner_mut().bot);
     });
+    */
 }
 
 
@@ -444,7 +471,7 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 				Some(next)=>{
 
 					//If we can't see our target
-					if r.cast(next){
+					let k=if r.cast(next){
 						//If we can't see our previous target
 						if r.cast(pointiter.pos()){	
 							
@@ -461,10 +488,9 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 										assert!(!wall);
 									}
 
-									let _ = bot.move_to_point(grid.to_world_center(gp),target_radius);
-
+									(gp,false)
 								}else{
-									let _ = bot.move_to_point(grid.to_world_center(ppos),target_radius);
+									(ppos,false)
 								}
 							
 							}else{
@@ -476,21 +502,30 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 								if let Some(wall)=walls.get_option(gp){
 									assert!(!wall);
 								}
-
-								let _ = bot.move_to_point(grid.to_world_center(gp),target_radius);	
+								(gp,false)	
 							}
 
 						}else{
 							//We can't see our target, but we can see our last target.
 							//try going to our last target.
-							let _ = bot.move_to_point(grid.to_world_center(pointiter.pos()),target_radius);		
+							(pointiter.pos(),false)	
 						}
 						
 					}else{
-						//We have clear line of sight to our target.
-						//Lets go to the target.
-						if bot.move_to_point(grid.to_world_center(next),target_radius){
-							
+						(next,true)
+					};
+
+
+					let target=grid.to_world_center(k.0);
+
+					let offset=target-bot.pos;
+					let steer=(offset-bot.vel*(30.0)).truncate_at(0.01);
+					assert!(!steer.x.is_nan()&&!steer.y.is_nan());
+					bot.vel+=steer;
+					//We have clear line of sight to our target.
+					//Lets go to the target.
+					if k.1{
+						if offset.magnitude()<10.0{
 							//dbg!("HIT TARGET!");
 							match pointiter.next(){
 								Some(_target)=>{
@@ -499,7 +534,7 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 								None=>{
 									
 								}
-							}
+							}	
 						}
 					}
 					
@@ -512,8 +547,8 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 		},
 		GridBotState::Thinking |
 		GridBotState::DoingNothing=>{
-			bot.acc=-bot.vel.truncate_at(0.03);
-			//bot.move_to_point(bot.pos,target_radius);
+			bot.vel=-bot.vel.truncate_at(0.03);
+			
 		}
 	}
 	
@@ -521,10 +556,10 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 	//Get square to display the 4 ray casts.
 	//Confirm you get different values of tval for each.
 	
-	bot.vel+=bot.acc;
-	bot.acc=vec2same(0.0);
+	//bot.vel+=bot.acc;
+	//bot.acc=vec2same(0.0);
 }
-
+/*
 fn handle_bot_moving(b:&mut GridBot,prop:&BotProp,_pathfinder:&PathFinder,grid:&GridViewPort,walls:&Grid2D){
 
 	let _state=&mut b.state;
@@ -612,3 +647,4 @@ fn handle_bot_moving(b:&mut GridBot,prop:&BotProp,_pathfinder:&PathFinder,grid:&
 	assert!(!rect_is_touching_wall(&create_bbox_wall(bot,prop),grid,walls));
 
 }
+*/

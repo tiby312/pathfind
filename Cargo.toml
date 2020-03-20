@@ -10,9 +10,10 @@ pathfinding = "2.0"
 rayon="*"
 dists = "*"
 dinotree = "*"
-dinotree_alg="*"
-duckduckgeo="*"
+dinotree_alg={path="../dinotree_alg"}
+duckduckgeo={path="../duckduckgeo"}
 rand="*"
 more-asserts="*"
 axgeom="*"
 ordered-float = "1.0.2"
+seq_impulse = {path="../seq_impulse"}
