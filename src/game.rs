@@ -208,11 +208,16 @@ impl Game{
 		
 		for b in self.bots.iter_mut(){
 			handle_bot_steering(b,&self.pathfinder,&self.grid,&self.walls);
-			//handle_bot_moving(b,&self.bot_prop,&self.pathfinder,&self.grid,&self.walls);
 		}
 
-		handle_bot_bot_collision(self);
+		use ordered_float::*;
+		let bot_prop=&self.bot_prop;
+	    let mut tree=dinotree_alg::collectable::CollectableDinoTree::new(&mut self.bots,|bot|{
+	    	Rect::from_point(bot.bot.pos,vec2same(bot_prop.radius.dis())).inner_try_into::<NotNan<_>>().unwrap()
+	    });
+	    self.velocity_solver.solve(self.bot_prop.radius.dis(),&self.grid,&self.walls,&mut tree);
 
+		
 		for b in self.bots.iter_mut(){
 			b.bot.pos+=b.bot.vel;
 		}
@@ -246,25 +251,6 @@ fn rect_is_touching_wall(rect:&Rect<WorldNum>,grid:&GridViewPort,walls:&Grid2D)-
 	return false;
 }
 
-
-
-/*
-pub fn ray_hits_point(radius:WorldNum,start:Vec2<WorldNum>,end:Vec2<WorldNum>,grid:&GridViewPort,walls:&Grid2D)->bool{
-	let r=RayStorm::new(Rect::from_point(start,vec2same(radius)));
-
-	let dir=(end-start);
-	
-	let length=dir.magnitude();
-	match r.find_nearest_collision(grid,walls,dir.normalize_to(1.0),length){
-		Some(k)=>{
-			false
-		},
-		None=>{
-			true
-		}
-	}
-}
-*/
 
 #[derive(Copy,Clone,Debug)]
 struct RayStorm{
@@ -357,29 +343,6 @@ fn cast_ray(grid:&GridViewPort,walls:&Grid2D,point:Vec2<WorldNum>,dir:Vec2<World
 }
 
 
-
-
-fn handle_bot_bot_collision(game:&mut Game){
-	use dinotree_alg::prelude::*;
-	use ordered_float::*;
-    
-	let bot_prop=&game.bot_prop;
-    //let mut bots:Vec<_>=bbox_helper::create_bbox_mut(&mut game.bots,);
-
-    let mut tree=dinotree_alg::collectable::CollectableDinoTree::new(&mut game.bots,|bot|{
-    	Rect::from_point(bot.bot.pos,vec2same(bot_prop.radius.dis())).inner_try_into::<NotNan<_>>().unwrap()
-    });
-
-    
-    game.velocity_solver.solve(game.bot_prop.radius.dis(),&game.grid,&game.walls,&mut tree);
-    /*
-    tree.find_collisions_mut_par(|mut a,mut b|{
-        //bot_prop.collide(&mut a.inner_mut().bot,&mut b.inner_mut().bot);
-    });
-    */
-}
-
-
 fn handle_path_assignment(game:&mut Game){
 	let mut path_requests=Vec::new();
 	for (i,b) in game.bots.iter_mut().enumerate(){
@@ -416,19 +379,12 @@ fn handle_path_assignment(game:&mut Game){
 		assert_eq!(b.state,GridBotState::Thinking);
 		match res.path{
 			Some(path)=>{
-				//dbg!(b.pos,path);
-				//println!("Attempting to go to {:?}",(b.pos,self.grid.convert_to_world(b.pos)));
-				//println!("starting to new. current pos={:?}",(b.pos,b.bot.pos));
 				let k=PathPointIter::new(res.info.start,path.iter());
 
-				//let _ = self.grid.inner.draw_map_and_path(k.inner);
-				//println!("starting new path path={:?}",k);
 				b.state=GridBotState::Moving(k,game.pathfinder.get_time());		
 			},
 			None=>{
 
-				//println!("failed for {:?}",res);
-				//println!("grid looks like={:?}",&self.grid.inner);
 	
 			}
 		}
@@ -465,17 +421,18 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 	match state{
 		GridBotState::Moving(ref mut pointiter,time)=>{
 
+			
 			let r=RayCastToSquare{bot,grid,walls};
 
 			match pointiter.peek(){
-				Some(next)=>{
+				Some((_carddir,next))=>{
 
 					//If we can't see our target
 					let k=if r.cast(next){
 						//If we can't see our previous target
 						if r.cast(pointiter.pos()){	
 							
-							if let Some(ppos) =pointiter.double_peek(){
+							if let Some((_carddir,ppos)) =pointiter.double_peek(){
 								//If we can't see our next target.
 								if r.cast(ppos){	
 									
@@ -516,9 +473,14 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 					};
 
 
-					let target=grid.to_world_center(k.0);
+					let offset={
+						let target=grid.to_world_center(k.0);
+						let grid_offset=k.0-grid.to_grid(bot.pos);
+						let k=grid_offset.rotate_90deg_left().inner_as();
+						let new_target=target+k*8.0;
+						new_target-bot.pos
+					};
 
-					let offset=target-bot.pos;
 					let steer=(offset-bot.vel*(30.0)).truncate_at(0.01);
 					assert!(!steer.x.is_nan()&&!steer.y.is_nan());
 					bot.vel+=steer;

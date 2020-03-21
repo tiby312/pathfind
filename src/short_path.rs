@@ -131,11 +131,11 @@ impl PathPointIter{
     pub fn pos(&self)->Vec2<GridNum>{
         self.cursor
     }
-    pub fn peek(&self)->Option<Vec2<GridNum>>{
-        self.path.peek().map(|a|self.cursor+a.into_offset().0)
+    pub fn peek(&self)->Option<(CardDir2,Vec2<GridNum>)>{
+        self.path.peek().map(|a|(a,self.cursor+a.into_offset().0))
     }
 
-    pub fn double_peek(&self)->Option<Vec2<GridNum>>{
+    pub fn double_peek(&self)->Option<(CardDir2,Vec2<GridNum>)>{
         let mut k=*self;
         k.next();
         k.peek()
@@ -145,7 +145,7 @@ impl PathPointIter{
 impl core::iter::FusedIterator for PathPointIter{}
 impl ExactSizeIterator for PathPointIter{}
 impl Iterator for PathPointIter{
-    type Item=Vec2<GridNum>;
+    type Item=(CardDir2,Vec2<GridNum>);
     fn size_hint(&self)->(usize,Option<usize>){
         let l = self.path.len();
         (l,Some(l))
@@ -155,7 +155,7 @@ impl Iterator for PathPointIter{
         match self.path.next(){
             Some(p)=>{
                 self.cursor+=p.into_offset().0;
-                Some(self.cursor)      
+                Some((p,self.cursor))      
             },
             None=>{
                 None
