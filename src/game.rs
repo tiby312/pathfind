@@ -40,8 +40,7 @@ fn testy(){
 
 impl Bot{
 
-
-	fn predict_collision(&self,other:&Bot,radius:f32)->Option<Vec2<f32>>{
+	fn predict_collision(&self,other:&Bot,radius:f32,max_tval:f32)->Option<(f32,f32,Vec2<f32>)>{
 		let a=self;
 		let b=other;
 
@@ -51,34 +50,23 @@ impl Bot{
 		}
 
 		let pos=b.pos-a.pos;
-		let pos_mag=pos.magnitude();
 
-		fn cross(a:&Vec2<f32>,b:&Vec2<f32>)->f32{
-			a.x*b.y-a.y*b.x
-		}	
 		let vel_normal=vel.normalize_to(1.0);
 		//let tval=cross(&pos,&vel_normal).abs();//.dot(pos);
 		
 		//let tval=pos.normalize_to(1.0).rotate_90deg_left()*tval
 		let tval=-vel_normal.dot(pos);//pos.dot(vel_normal);
-		if tval>radius && tval < 40.0{
+		if tval>0.0 && tval < max_tval{
 			
-			//tval*tval+x*x=pos.magnitude()
-			//x*x=pos.magnitude()-tval*tval
-			//x=sqrt(pos.magnitude()-tval*val)
-			let distance=(pos_mag*pos_mag-tval*tval).sqrt();
-			//dbg!(tval,vel_normal);
-			//let k=pos-vel_normal*tval;
+			
+			let closest_pos=pos+vel_normal*tval;
 
-			//let distance=k.magnitude();
+			let distance=closest_pos.magnitude();
 
 			if distance<radius*2.0{
-				assert!(!tval.is_nan());
+				//assert!(!tval.is_nan());
 				
-				//let cc=vel_normal.cross(pos);
-				let k=-vel_normal.rotate_90deg_left();
-				//return Some(vec2same(0.0))	
-				return Some(k);
+				return Some((tval,distance,-closest_pos.normalize_to(1.0)))
 			}
 		}
 
@@ -273,29 +261,51 @@ impl Game{
 		}
 
 
-		let ll=self.bot_prop.radius.dis()*20.0;
+		let avoid_radius=self.bot_prop.radius.dis()*20.0;
 		//TODO calculate bbox to grow in direction of velocity
 		let mut tree=dinotree_alg::collectable::CollectableDinoTree::new(&mut self.bots,|bot|{
-			Rect::from_point(bot.bot.pos,vec2same(ll)).inner_try_into::<NotNan<_>>().unwrap()
+			Rect::from_point(bot.bot.pos,vec2same(avoid_radius)).inner_try_into::<NotNan<_>>().unwrap()
 		});
 
 	    let radius=self.bot_prop.radius.dis();
-	    let avoid_mag=0.01;
+	    let avoid_mag=0.1;
 	    
-	    let mut lines =canvas.lines(3.0);
+	    let mut lines =canvas.lines(2.0);
 	    tree.get_mut().find_collisions_mut(|a,b|{
-	    	
-	    	if let Some(aa) = a.bot.predict_collision(&b.bot,radius){
-	    		a.bot.steering+=aa*avoid_mag;
-	    		b.bot.steering-=aa*avoid_mag;
+	    	let a=&mut a.bot;
+	    	let b=&mut b.bot;
+
+	    	{
+		    	//seperation
+		    	let offset=b.pos-a.pos;
+		    	let distance=offset.magnitude();
+		    	if distance>0.01 && distance<avoid_radius*2.0{
+
+			    	let dis_mag=(avoid_radius*2.0)/distance;
+			    	let offset_norm=offset.normalize_to(1.0);
+			    	assert!(!dis_mag.is_nan());
+			    	a.vel-=offset_norm*dis_mag*0.00005;
+			    	b.vel+=offset_norm*dis_mag*0.00005;
+		    	}
+			}
+
+	    	if let Some((tval,distance,aa)) = a.predict_collision(&b,radius,80.0){
+	    		let hit_mag=radius*2.0/distance;
+
+	    		let kk=aa*avoid_mag*((80.0/tval)+hit_mag);
+	    		//lines.add(a.bot.pos.into(),(a.bot.pos+kk*100.0).into());
+	    		//lines.add(b.bot.pos.into(),(b.bot.pos-kk*100.0).into());
+	    		
+	    		a.steering+=kk;
+	    		b.steering-=kk;
 	    		
 	    	}
 	    });
-	    lines.send_and_uniforms(canvas).with_color([1.0,1.0,0.2,1.0]).draw();
+	    lines.send_and_uniforms(canvas).with_color([1.0,1.0,0.2,0.3]).draw();
 
 	    for a in self.bots.iter_mut(){
 	    	if a.bot.steering.magnitude2()>0.01{
-		    	a.bot.steering.truncate_at(avoid_mag);
+		    	a.bot.steering=a.bot.steering.truncate_at(avoid_mag);
 		    	a.bot.vel+=a.bot.steering;
 		    	a.bot.steering=vec2same(0.0);
 	    	}
@@ -578,7 +588,8 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 						target-bot.pos
 					};
 
-					let steer=(offset-bot.vel*(30.0)).truncate_at(0.01);
+					let steer=(offset-bot.vel*(30.0))*0.0006;
+					//let steer=steer.truncate_at(0.2);
 					assert!(!steer.x.is_nan()&&!steer.y.is_nan());
 					bot.vel+=steer;
 					//We have clear line of sight to our target.
