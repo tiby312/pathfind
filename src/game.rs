@@ -26,6 +26,37 @@ pub struct Bot{
 }
 
 
+impl Bot{
+
+	fn predict_collision(&self,other:&Bot,radius:f32)->Option<Vec2<f32>>{
+		let a=self;
+		let b=other;
+
+		let vel=b.vel-a.vel;
+		let pos=b.pos-a.pos;
+
+		let vel_normal=vel.normalize_to(1.0);
+		let tval=pos.dot(vel_normal);//vel_normal.dot(pos);
+
+		if tval>0.0 && tval < 100.0{
+			let k=pos-vel_normal*tval;
+
+			let distance=k.magnitude();
+
+			if distance<radius*2.0{
+				assert!(!tval.is_nan());
+				
+				//let cc=vel_normal.cross(pos);
+				let k=vel_normal.rotate_90deg_left();
+					
+				return Some(k);
+			}
+		}
+
+		None
+	}
+}
+
 
 #[derive(Copy,Clone,Debug)]
 pub struct GridBot{
@@ -157,14 +188,15 @@ impl Game{
 		let walls=Grid2D::from_str(map);
 
 		let bot_prop=BotProp{
-            radius:Dist::new(4.0),
+            radius:Dist::new(6.0),
             collision_drag:0.001,
             collision_push:0.01,
             minimum_dis_sqr:0.0001,
             viscousity_coeff:0.003
         };
 
-        let num_bot=5000;
+
+        let num_bot=100;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let bot=Bot{pos:pos.inner_as(),vel:vec2same(0.0)};
@@ -202,19 +234,48 @@ impl Game{
 	}
 
 	//main loop!!!!
-	pub fn step(&mut self){
+	pub fn step(&mut self,canvas:&mut egaku2d::SimpleCanvas){
 				
 		handle_path_assignment(self);		
+		
 		
 		for b in self.bots.iter_mut(){
 			handle_bot_steering(b,&self.pathfinder,&self.grid,&self.walls);
 		}
+
+
+		let ll=self.bot_prop.radius.dis()*20.0;
+		//TODO calculate bbox to grow in direction of velocity
+		let mut tree=dinotree_alg::collectable::CollectableDinoTree::new(&mut self.bots,|bot|{
+			Rect::from_point(bot.bot.pos,vec2same(ll)).inner_try_into::<NotNan<_>>().unwrap()
+		});
+
+	    let radius=self.bot_prop.radius.dis();
+	    let avoid_mag=0.1;
+	    
+	    let mut lines =canvas.lines(5.0);
+	    tree.get_mut().find_collisions_mut(|a,b|{
+	    	
+	    	if let Some(aa) = a.bot.predict_collision(&b.bot,radius){
+	    		lines.add(a.bot.pos.into(),b.bot.pos.into());
+	    		a.bot.vel+=aa*avoid_mag;
+	    		b.bot.vel-=aa*avoid_mag;
+	    		
+	    	}
+	    });
+	    lines.send_and_uniforms(canvas).with_color([1.0,1.0,0.2,1.0]).draw();
+
+
 
 		use ordered_float::*;
 		let bot_prop=&self.bot_prop;
 	    let mut tree=dinotree_alg::collectable::CollectableDinoTree::new(&mut self.bots,|bot|{
 	    	Rect::from_point(bot.bot.pos,vec2same(bot_prop.radius.dis())).inner_try_into::<NotNan<_>>().unwrap()
 	    });
+
+
+
+
 	    self.velocity_solver.solve(self.bot_prop.radius.dis(),&self.grid,&self.walls,&mut tree);
 
 		
@@ -475,10 +536,11 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 
 					let offset={
 						let target=grid.to_world_center(k.0);
-						let grid_offset=k.0-grid.to_grid(bot.pos);
-						let k=grid_offset.rotate_90deg_left().inner_as();
-						let new_target=target+k*8.0;
-						new_target-bot.pos
+						//let grid_offset=k.0-grid.to_grid(bot.pos);
+						//let k=grid_offset.rotate_90deg_left().inner_as();
+						//let new_target=target+k*16.0;
+						//new_target-bot.pos
+						target-bot.pos
 					};
 
 					let steer=(offset-bot.vel*(30.0)).truncate_at(0.01);
