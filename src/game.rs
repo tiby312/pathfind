@@ -22,10 +22,11 @@ pub enum GridBotState{
 #[derive(Copy,Clone,Debug)]
 pub struct Bot{
 	pub pos:Vec2<f32>,
-	pub vel:Vec2<f32>
+	pub vel:Vec2<f32>,
+	pub steering:Vec2<f32>
 }
 
-
+/*
 #[test]
 fn testy(){
 	let b1=Bot{pos:vec2(10.0,10.0),vel:vec2(-1.0,-0.5)};
@@ -35,7 +36,7 @@ fn testy(){
 	b1.predict_collision(&b2,5.0);
 	panic!("fail")
 }
-
+*/
 
 impl Bot{
 
@@ -75,7 +76,7 @@ impl Bot{
 				assert!(!tval.is_nan());
 				
 				//let cc=vel_normal.cross(pos);
-				let k=vel_normal.rotate_90deg_left();
+				let k=-vel_normal.rotate_90deg_left();
 				//return Some(vec2same(0.0))	
 				return Some(k);
 			}
@@ -224,10 +225,10 @@ impl Game{
         };
 
 
-        let num_bot=100;
+        let num_bot=1000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
-    		let bot=Bot{pos:pos.inner_as(),vel:vec2same(0.0)};
+    		let bot=Bot{pos:pos.inner_as(),vel:vec2same(0.0),steering:vec2same(0.0)};
     		GridBot{bot,state:GridBotState::DoingNothing}
     	}).collect();
 
@@ -281,18 +282,24 @@ impl Game{
 	    let radius=self.bot_prop.radius.dis();
 	    let avoid_mag=0.01;
 	    
-	    let mut lines =canvas.lines(5.0);
+	    let mut lines =canvas.lines(3.0);
 	    tree.get_mut().find_collisions_mut(|a,b|{
 	    	
 	    	if let Some(aa) = a.bot.predict_collision(&b.bot,radius){
-	    		lines.add(a.bot.pos.into(),b.bot.pos.into());
-	    		a.bot.vel+=aa*avoid_mag;
-	    		b.bot.vel-=aa*avoid_mag;
+	    		a.bot.steering+=aa*avoid_mag;
+	    		b.bot.steering-=aa*avoid_mag;
 	    		
 	    	}
 	    });
 	    lines.send_and_uniforms(canvas).with_color([1.0,1.0,0.2,1.0]).draw();
 
+	    for a in self.bots.iter_mut(){
+	    	if a.bot.steering.magnitude2()>0.01{
+		    	a.bot.steering.truncate_at(avoid_mag);
+		    	a.bot.vel+=a.bot.steering;
+		    	a.bot.steering=vec2same(0.0);
+	    	}
+	    }
 
 
 		use ordered_float::*;
