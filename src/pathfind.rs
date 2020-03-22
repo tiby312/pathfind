@@ -79,7 +79,7 @@ const DELAY:usize=60*3;
 //TODO add caching
 mod test{
     
-    
+    /*
     #[test]
     fn test(){
         let mut grid=Grid2D::new(vec2(10,10));
@@ -108,6 +108,7 @@ mod test{
         use CardDir::*;
         assert_eq!(k[0].path.unwrap(),ShortPath::new([R,R,R,R,R,R,R,R,R,D,D,D,D,D,D,D,D,D].iter().map(|a|*a)));
     }
+    */
 }
 
 

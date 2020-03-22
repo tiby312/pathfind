@@ -26,29 +26,57 @@ pub struct Bot{
 }
 
 
+#[test]
+fn testy(){
+	let b1=Bot{pos:vec2(10.0,10.0),vel:vec2(-1.0,-0.5)};
+	let b2=Bot{pos:vec2(0.0,0.0),vel:vec2(0.0,0.0)};
+
+	dbg!(b1,b2);
+	b1.predict_collision(&b2,5.0);
+	panic!("fail")
+}
+
+
 impl Bot{
+
 
 	fn predict_collision(&self,other:&Bot,radius:f32)->Option<Vec2<f32>>{
 		let a=self;
 		let b=other;
 
 		let vel=b.vel-a.vel;
+		if vel.magnitude()<0.01{
+			return None
+		}
+
 		let pos=b.pos-a.pos;
+		let pos_mag=pos.magnitude();
 
+		fn cross(a:&Vec2<f32>,b:&Vec2<f32>)->f32{
+			a.x*b.y-a.y*b.x
+		}	
 		let vel_normal=vel.normalize_to(1.0);
-		let tval=pos.dot(vel_normal);//vel_normal.dot(pos);
+		//let tval=cross(&pos,&vel_normal).abs();//.dot(pos);
+		
+		//let tval=pos.normalize_to(1.0).rotate_90deg_left()*tval
+		let tval=-vel_normal.dot(pos);//pos.dot(vel_normal);
+		if tval>radius && tval < 40.0{
+			
+			//tval*tval+x*x=pos.magnitude()
+			//x*x=pos.magnitude()-tval*tval
+			//x=sqrt(pos.magnitude()-tval*val)
+			let distance=(pos_mag*pos_mag-tval*tval).sqrt();
+			//dbg!(tval,vel_normal);
+			//let k=pos-vel_normal*tval;
 
-		if tval>0.0 && tval < 100.0{
-			let k=pos-vel_normal*tval;
-
-			let distance=k.magnitude();
+			//let distance=k.magnitude();
 
 			if distance<radius*2.0{
 				assert!(!tval.is_nan());
 				
 				//let cc=vel_normal.cross(pos);
 				let k=vel_normal.rotate_90deg_left();
-					
+				//return Some(vec2same(0.0))	
 				return Some(k);
 			}
 		}
@@ -251,7 +279,7 @@ impl Game{
 		});
 
 	    let radius=self.bot_prop.radius.dis();
-	    let avoid_mag=0.1;
+	    let avoid_mag=0.01;
 	    
 	    let mut lines =canvas.lines(5.0);
 	    tree.get_mut().find_collisions_mut(|a,b|{

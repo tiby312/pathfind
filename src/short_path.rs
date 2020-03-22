@@ -4,7 +4,7 @@ use crate::axgeom::*;
 use duckduckgeo::grid::*;
 
 
-
+/*
 #[test]
 fn test_short(){
     use crate::short_path::*;
@@ -15,7 +15,7 @@ fn test_short(){
     let v:Vec<_>=s.iter().collect();
     assert_eq!(&v as &[_],&test_path);
 }
-
+*/
 
 use core::fmt;
 pub mod shortpath2{
