@@ -23,7 +23,8 @@ pub enum GridBotState{
 pub struct Bot{
 	pub pos:Vec2<f32>,
 	pub vel:Vec2<f32>,
-	pub steering:Vec2<f32>
+	pub steering:Vec2<f32>,
+	pub counter:usize
 }
 
 /*
@@ -205,7 +206,7 @@ impl Game{
 		let walls=Grid2D::from_str(map);
 
 		let bot_prop=BotProp{
-            radius:Dist::new(6.0),
+            radius:Dist::new(10.0),
             collision_drag:0.001,
             collision_push:0.01,
             minimum_dis_sqr:0.0001,
@@ -216,7 +217,7 @@ impl Game{
         let num_bot=1000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
-    		let bot=Bot{pos:pos.inner_as(),vel:vec2same(0.0),steering:vec2same(0.0)};
+    		let bot=Bot{pos:pos.inner_as(),vel:vec2same(0.0),steering:vec2same(0.0),counter:1};
     		GridBot{bot,state:GridBotState::DoingNothing}
     	}).collect();
 
@@ -268,47 +269,58 @@ impl Game{
 		});
 
 	    let radius=self.bot_prop.radius.dis();
-	    let avoid_mag=0.1;
+	    let avoid_mag=0.05;
 	    
 	    let mut lines =canvas.lines(2.0);
+	    
 	    tree.get_mut().find_collisions_mut(|a,b|{
 	    	let a=&mut a.bot;
 	    	let b=&mut b.bot;
 
-	    	{
-		    	//seperation
-		    	let offset=b.pos-a.pos;
-		    	let distance=offset.magnitude();
-		    	if distance>0.01 && distance<avoid_radius*2.0{
 
-			    	let dis_mag=(avoid_radius*2.0)/distance;
-			    	let offset_norm=offset.normalize_to(1.0);
-			    	assert!(!dis_mag.is_nan());
-			    	a.vel-=offset_norm*dis_mag*0.00005;
-			    	b.vel+=offset_norm*dis_mag*0.00005;
-		    	}
+	    	let offset=b.pos-a.pos;
+	    	let distance=offset.magnitude();
+	    	if distance>0.01 && distance<avoid_radius*2.0{
+
+	    		//cohesion
+	    		a.counter+=1;
+	    		b.counter+=1;
+	    		a.steering+=b.vel;
+	    		b.steering+=a.vel;
+	    	
+		    	//seperation	
+		    	let dis_mag=(avoid_radius*2.0)/distance;
+		    	let offset_norm=offset.normalize_to(1.0);
+		    	assert!(!dis_mag.is_nan());
+		    	a.vel-=offset_norm*dis_mag*0.00005;
+		    	b.vel+=offset_norm*dis_mag*0.00005;
 			}
 
 	    	if let Some((tval,distance,aa)) = a.predict_collision(&b,radius,80.0){
-	    		let hit_mag=radius*2.0/distance;
+	    		//both between 0..1
+	    		let hit_mag=(radius*2.0-distance)/radius*2.0;
+	    		let tval_mag=(80.0-tval)/80.0;
 
-	    		let kk=aa*avoid_mag*((80.0/tval)+hit_mag);
-	    		//lines.add(a.bot.pos.into(),(a.bot.pos+kk*100.0).into());
-	    		//lines.add(b.bot.pos.into(),(b.bot.pos-kk*100.0).into());
-	    		
-	    		a.steering+=kk;
-	    		b.steering-=kk;
-	    		
+	    		let mag=avoid_mag * (tval_mag+hit_mag)*0.5;
+	    		if mag>0.01{
+		    		let kk=aa*mag;
+		    		a.vel+=kk;
+		    		b.vel-=kk;
+	    		}
 	    	}
 	    });
+	    
 	    lines.send_and_uniforms(canvas).with_color([1.0,1.0,0.2,0.3]).draw();
 
+	    let cohesion_coeff=0.01;
 	    for a in self.bots.iter_mut(){
-	    	if a.bot.steering.magnitude2()>0.01{
-		    	a.bot.steering=a.bot.steering.truncate_at(avoid_mag);
-		    	a.bot.vel+=a.bot.steering;
-		    	a.bot.steering=vec2same(0.0);
-	    	}
+	    	let a=&mut a.bot;
+
+	    	//apply cohesion
+	    	let k=a.steering/a.counter as f32;
+	    	a.vel+=k*cohesion_coeff;
+	    	a.steering=vec2same(0.0);
+	    	a.counter=1;
 	    }
 
 
@@ -321,7 +333,7 @@ impl Game{
 
 
 
-	    self.velocity_solver.solve(self.bot_prop.radius.dis(),&self.grid,&self.walls,&mut tree);
+	    self.velocity_solver.solve(self.bot_prop.radius.dis()*0.5,&self.grid,&self.walls,&mut tree);
 
 		
 		for b in self.bots.iter_mut(){
