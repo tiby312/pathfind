@@ -214,7 +214,7 @@ impl Game{
         };
 
 
-        let num_bot=1000;
+        let num_bot=300;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let bot=Bot{pos:pos.inner_as(),vel:vec2same(0.0),steering:vec2same(0.0),counter:0};
@@ -294,7 +294,7 @@ impl Game{
 	    	b.bot.counter=1;
 	    }
 
-	    pairs.for_every_pair_par(&mut tree,|a,b,&mut (offset,distance)|{
+	    pairs.for_every_pair_mut_par(&mut tree,|a,b,&mut (offset,distance)|{
 
 	    	let a=&mut a.bot;
 	    	let b=&mut b.bot;
@@ -348,7 +348,7 @@ impl Game{
 	    	b.bot.counter=1;
 	    }
 
-	    pairs.for_every_pair_par(&mut tree,|a,b,&mut (offset,distance)|{
+	    pairs.for_every_pair_mut_par(&mut tree,|a,b,&mut (offset,distance)|{
 	    	if distance>0.01 && distance<avoid_radius*2.0{
 	    		let a=&mut a.bot;
 	    		let b=&mut b.bot;
