@@ -206,7 +206,7 @@ impl Game{
 		let walls=Grid2D::from_str(map);
 
 		let bot_prop=BotProp{
-            radius:Dist::new(10.0),
+            radius:Dist::new(6.0),
             collision_drag:0.001,
             collision_push:0.01,
             minimum_dis_sqr:0.0001,
@@ -270,7 +270,7 @@ impl Game{
 		});
 
 	    let radius=self.bot_prop.radius.dis();
-	    let avoid_mag=0.05;
+	    
 	    
 	    //let mut lines =canvas.lines(2.0);
 	    
@@ -306,19 +306,21 @@ impl Game{
     		b.steering+=a.vel;
     	
 	    	//seperation	
+	    	let sep_coeff=0.00005;
 	    	let dis_mag=(avoid_radius*2.0)/distance;
 	    	let offset_norm=offset.normalize_to(1.0);
 	    	assert!(!dis_mag.is_nan());
-	    	a.vel-=offset_norm*dis_mag*0.00005;
-	    	b.vel+=offset_norm*dis_mag*0.00005;
+	    	a.vel-=offset_norm*dis_mag*sep_coeff;
+	    	b.vel+=offset_norm*dis_mag*sep_coeff;
 		
 
+	    	let avoid_coeff=0.1;
 	    	if let Some((tval,distance,aa)) = a.predict_collision(&b,radius,80.0){
 	    		//both between 0..1
 	    		let hit_mag=(radius*2.0-distance)/radius*2.0;
 	    		let tval_mag=(80.0-tval)/80.0;
 
-	    		let mag=avoid_mag * (tval_mag+hit_mag)*0.5;
+	    		let mag=avoid_coeff * (tval_mag+hit_mag)*0.5;
 	    		if mag>0.01{
 		    		let kk=aa*mag;
 		    		a.vel+=kk;
@@ -366,7 +368,10 @@ impl Game{
 	    	let avg_pos=a.steering/a.counter as f32;
 	    	let dir=avg_pos-a.pos;
 	    	a.vel+=dir*cohesion_coeff;
+	    
+	    	//a.vel+=vec2(0.0,0.1);
 	    }
+
 
 
 		use ordered_float::*;
@@ -378,7 +383,7 @@ impl Game{
 
 
 
-	    self.velocity_solver.solve(self.bot_prop.radius.dis()*0.5,&self.grid,&self.walls,&mut tree);
+	    self.velocity_solver.solve(self.bot_prop.radius.dis(),&self.grid,&self.walls,&mut tree);
 
 		
 		for b in self.bots.iter_mut(){

@@ -10,7 +10,8 @@ pathfinding = "2.0"
 rayon="*"
 dists = "*"
 dinotree = "*"
-egaku2d = "*"
+#egaku2d = "*"
+egaku2d={path="../egaku2d"}
 dinotree_alg={path="../dinotree_alg"}
 duckduckgeo={path="../duckduckgeo"}
 rand="*"
