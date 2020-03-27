@@ -274,7 +274,7 @@ impl Game{
 	    
 	    //let mut lines =canvas.lines(2.0);
 	    
-	    let mut pairs=tree.collect_collisions_list_par(|a,b|{
+	    let mut pairs=tree.collect_intersections_list_par(|a,b|{
 	    	let a=&mut a.bot;
 	    	let b=&mut b.bot;
 
