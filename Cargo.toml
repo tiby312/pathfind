@@ -18,5 +18,5 @@ rand="*"
 more-asserts="*"
 axgeom="*"
 ordered-float = "1.0.2"
-seq_impulse = {git="https://github.com/tiby312/seq_impulse"}
-#seq_impulse = {path="../seq_impulse"}
+#seq_impulse = {git="https://github.com/tiby312/seq_impulse"}
+seq_impulse = {path="../seq_impulse"}

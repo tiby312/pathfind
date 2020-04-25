@@ -27,19 +27,36 @@ pub struct Bot{
 	pub counter:usize
 }
 
-/*
-#[test]
-fn testy(){
-	let b1=Bot{pos:vec2(10.0,10.0),vel:vec2(-1.0,-0.5)};
-	let b2=Bot{pos:vec2(0.0,0.0),vel:vec2(0.0,0.0)};
-
-	dbg!(b1,b2);
-	b1.predict_collision(&b2,5.0);
-	panic!("fail")
-}
-*/
 
 impl Bot{
+	pub fn steer_to_point(&self,target:&Vec2<f32>,mag:f32,max_speed:f32)->Vec2<f32>{
+        /*
+            target_offset = target - position
+            distance = length (target_offset)
+            ramped_speed = max_speed * (distance / slowing_distance)
+            clipped_speed = minimum (ramped_speed, max_speed)
+            desired_velocity = (clipped_speed / distance) * target_offset
+            steering = desired_velocity - velocity
+        */
+
+        //let mag=0.2;
+        //let max_speed=6.0;
+
+        //v^2=v0^2+2adx
+        //0=max_speed^2+2*mag*d
+        //max_speed^2=-2*mag*d
+        //d=max_speed^2/-2*mag
+        let slowing_distance=(max_speed*max_speed)/(2.0*mag);
+        
+        let target_offset = *target-self.pos;
+        let dis=target_offset.magnitude();
+        //if dis>=0.001{
+        let ramped_speed=max_speed*(dis/slowing_distance);
+        let clipped_speed=ramped_speed.min(max_speed);
+        let desired_velocity=target_offset*(clipped_speed/dis);
+        (desired_velocity-self.vel).truncate_at(mag)
+        //}
+    }
 
 	fn predict_collision(&self,other:&Bot,radius:f32,max_tval:f32)->Option<(f32,f32,Vec2<f32>)>{
 		let a=self;
@@ -64,10 +81,13 @@ impl Bot{
 
 			let distance=closest_pos.magnitude();
 
-			if distance<radius*2.0{
+			if distance<radius*2.0 && distance>0.001{
 				//assert!(!tval.is_nan());
 				
 				return Some((tval,distance,-closest_pos.normalize_to(1.0)))
+			}else{
+				//TODO
+				return None
 			}
 		}
 
@@ -214,7 +234,7 @@ impl Game{
         };
 
 
-        let num_bot=300;
+        let num_bot=1000;
         let s=dists::grid::Grid::new(*dim.clone().grow(-0.1),num_bot);
     	let mut bots:Vec<GridBot>=s.take(num_bot).map(|pos|{
     		let bot=Bot{pos:pos.inner_as(),vel:vec2same(0.0),steering:vec2same(0.0),counter:0};
@@ -300,11 +320,12 @@ impl Game{
 	    	let b=&mut b.bot;
 
     		//alignment
-    		a.counter+=1;
-    		b.counter+=1;
-    		a.steering+=b.vel;
-    		b.steering+=a.vel;
+    		//a.counter+=1;
+    		//b.counter+=1;
+    		//a.steering+=b.vel;
+    		//b.steering+=a.vel;
     	
+    		/*
 	    	//seperation	
 	    	let sep_coeff=0.00005;
 	    	let dis_mag=(avoid_radius*2.0)/distance;
@@ -312,8 +333,9 @@ impl Game{
 	    	assert!(!dis_mag.is_nan());
 	    	a.vel-=offset_norm*dis_mag*sep_coeff;
 	    	b.vel+=offset_norm*dis_mag*sep_coeff;
-		
+			*/
 
+			
 	    	let avoid_coeff=0.1;
 	    	if let Some((tval,distance,aa)) = a.predict_collision(&b,radius,80.0){
 	    		//both between 0..1
@@ -321,17 +343,22 @@ impl Game{
 	    		let tval_mag=(80.0-tval)/80.0;
 
 	    		let mag=avoid_coeff * (tval_mag+hit_mag)*0.5;
-	    		if mag>0.01{
+	    		if mag>0.01 && !mag.is_nan(){
 		    		let kk=aa*mag;
 		    		a.vel+=kk;
 		    		b.vel-=kk;
+		    		assert!(!a.vel.is_nan(),"{:?}",(kk,mag));
+		    		assert!(!b.vel.is_nan());
 	    		}
 	    	}
+	    	
+	    	
 
 	    });
 	    
 	    //lines.send_and_uniforms(canvas).with_color([1.0,1.0,0.2,0.3]).draw();
 
+	    /*
 	    let alignment_coeff=0.01;
 	    for a in tree.get_bots_mut().iter_mut(){
 	    	let a=&mut a.bot;
@@ -340,6 +367,8 @@ impl Game{
 	    	let k=a.steering/a.counter as f32;
 	    	a.vel+=k*alignment_coeff;
 	    }
+	    */
+
 	    
  
 
@@ -641,8 +670,10 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 					};
 
 
+
+					let target=grid.to_world_center(k.0);
+						
 					let offset={
-						let target=grid.to_world_center(k.0);
 						//let grid_offset=k.0-grid.to_grid(bot.pos);
 						//let k=grid_offset.rotate_90deg_left().inner_as();
 						//let new_target=target+k*16.0;
@@ -653,7 +684,7 @@ fn handle_bot_steering(b:&mut GridBot,pathfinder:&PathFinder,grid:&GridViewPort,
 					let steer=(offset-bot.vel*(30.0))*0.0006;
 					//let steer=steer.truncate_at(0.2);
 					assert!(!steer.x.is_nan()&&!steer.y.is_nan());
-					bot.vel+=steer;
+					bot.vel+=bot.steer_to_point(&target,0.1,5.0);
 					//We have clear line of sight to our target.
 					//Lets go to the target.
 					if k.1{
