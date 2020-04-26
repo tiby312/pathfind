@@ -277,7 +277,7 @@ impl Game{
 		
 
 
-		let avoid_radius=self.bot_prop.radius.dis()*20.0;
+		let avoid_radius=self.bot_prop.radius.dis()*3.0;
 		//TODO calculate bbox to grow in direction of velocity
 		let mut tree=dinotree_alg::collectable::CollectableDinoTree::new(&mut self.bots,|bot|{
 			Rect::from_point(bot.bot.pos,vec2same(avoid_radius)).inner_try_into::<NotNan<_>>().unwrap()
@@ -319,15 +319,16 @@ impl Game{
     		//a.steering+=b.vel;
     		//b.steering+=a.vel;
     	
-    		/*
+    		
 	    	//seperation	
-	    	let sep_coeff=0.00005;
-	    	let dis_mag=(avoid_radius*2.0)/distance;
+	    	let sep_coeff=0.1;
+	    	//let dis_mag=(avoid_radius*2.0)/distance;
+	    	let dis_mag=(avoid_radius*2.0-distance)/(avoid_radius*2.0);
 	    	let offset_norm=offset.normalize_to(1.0);
 	    	assert!(!dis_mag.is_nan());
 	    	a.vel-=offset_norm*dis_mag*sep_coeff;
 	    	b.vel+=offset_norm*dis_mag*sep_coeff;
-			*/
+			
 
 			
 	    	let avoid_coeff=0.2;
