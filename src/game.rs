@@ -27,7 +27,6 @@ pub struct Bot{
 	pub counter:usize
 }
 
-
 impl Bot{
 	pub fn steer_to_point(&self,target:&Vec2<f32>,mag:f32,max_speed:f32)->Vec2<f32>{
         /*
@@ -39,23 +38,18 @@ impl Bot{
             steering = desired_velocity - velocity
         */
 
-        //let mag=0.2;
-        //let max_speed=6.0;
-
         //v^2=v0^2+2adx
         //0=max_speed^2+2*mag*d
         //max_speed^2=-2*mag*d
         //d=max_speed^2/-2*mag
         let slowing_distance=(max_speed*max_speed)/(2.0*mag);
-        
+     
         let target_offset = *target-self.pos;
         let dis=target_offset.magnitude();
-        //if dis>=0.001{
         let ramped_speed=max_speed*(dis/slowing_distance);
         let clipped_speed=ramped_speed.min(max_speed);
         let desired_velocity=target_offset*(clipped_speed/dis);
         (desired_velocity-self.vel).truncate_at(mag)
-        //}
     }
 
 	fn predict_collision(&self,other:&Bot,radius:f32,max_tval:f32)->Option<(f32,f32,Vec2<f32>)>{
@@ -336,11 +330,12 @@ impl Game{
 			*/
 
 			
-	    	let avoid_coeff=0.1;
-	    	if let Some((tval,distance,aa)) = a.predict_collision(&b,radius,80.0){
+	    	let avoid_coeff=0.2;
+	    	let max_tval=40.0;
+	    	if let Some((tval,distance,aa)) = a.predict_collision(&b,radius*1.1,max_tval){
 	    		//both between 0..1
 	    		let hit_mag=(radius*2.0-distance)/radius*2.0;
-	    		let tval_mag=(80.0-tval)/80.0;
+	    		let tval_mag=(max_tval-tval)/max_tval;
 
 	    		let mag=avoid_coeff * (tval_mag+hit_mag)*0.5;
 	    		if mag>0.01 && !mag.is_nan(){
